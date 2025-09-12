@@ -1,6 +1,6 @@
-# WebGPU WebLLM App (with WASM fallback)
+# Cora - AI Assistant
 
-Run an LLM **entirely in the browser**. Primary path uses **WebLLM + WebGPU**. If WebGPU isn't available, we **fallback to WASM** via **wllama** (no server, no keys).
+Cora is an AI assistant that runs **entirely in the browser**. Primary path uses **WebLLM + WebGPU**. If WebGPU isn't available, we **fallback to WASM** via **wllama** (no server, no keys).
 
 ## Features
 - OpenAI-compatible **WebLLM** with **streaming** output

@@ -1,6 +1,6 @@
 {
-  "name": "WebGPU LLM (WebLLM + WASM)",
-  "short_name": "Web LLM",
+  "name": "Cora",
+  "short_name": "Cora",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0b1220",
