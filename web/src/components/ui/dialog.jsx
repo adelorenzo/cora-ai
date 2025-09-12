@@ -33,7 +33,7 @@ const DialogContent = React.forwardRef(({ className, children, onClose, ...props
   <div
     ref={ref}
     className={cn(
-      "relative bg-white border border-purple-200 rounded-2xl shadow-2xl w-full max-w-lg p-6",
+      "relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg p-6 text-foreground",
       className
     )}
     {...props}
@@ -59,7 +59,7 @@ const DialogHeader = ({ className, ...props }) => (
 const DialogTitle = React.forwardRef(({ className, ...props }, ref) => (
   <h2
     ref={ref}
-    className={cn("text-lg font-semibold leading-none tracking-tight text-gray-800", className)}
+    className={cn("text-lg font-semibold leading-none tracking-tight text-foreground", className)}
     {...props}
   />
 ))

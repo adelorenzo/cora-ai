@@ -1,12 +1,15 @@
 const WEBLLM_URL = "https://unpkg.com/@mlc-ai/web-llm@0.2.79?module";
 const WLLAMA_URL = "https://unpkg.com/@wllama/wllama@2.3.5/esm/wasm-from-cdn.js?module";
 
+import ragService from './embeddings/rag-service.js';
+
 class LLMService {
   constructor() {
     this.engine = null;
     this.runtime = "detecting";
     this.currentModel = null;
     this.initCallback = null;
+    this.ragService = ragService;
   }
 
   async detectRuntime() {
@@ -164,6 +167,63 @@ class LLMService {
       return this.initWebLLM(model);
     }
     return { runtime: this.runtime, models: [], selectedModel: this.currentModel };
+  }
+
+  /**
+   * Check if RAG is enabled and initialized
+   * @returns {boolean}
+   */
+  isRAGEnabled() {
+    return this.ragService && this.ragService.initialized;
+  }
+
+  /**
+   * Enhanced chat method with RAG context integration
+   * @param {Array} messages - Chat messages
+   * @param {Object} options - Generation options
+   * @returns {AsyncGenerator} Message stream with RAG context
+   */
+  async *chat(messages, options = {}) {
+    if (!this.engine) {
+      throw new Error("LLM engine not initialized");
+    }
+
+    let enhancedMessages = [...messages];
+    
+    // Get RAG context if enabled and user message exists
+    if (this.isRAGEnabled() && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      
+      if (lastMessage.role === 'user') {
+        try {
+          const searchContext = await this.ragService.getSearchContext(lastMessage.content, {
+            limit: options.ragLimit || 5,
+            threshold: options.ragThreshold || 0.7
+          });
+          
+          if (searchContext) {
+            // Insert RAG context before the user message
+            const contextMessage = {
+              role: 'system',
+              content: `Relevant information from knowledge base:\n\n${searchContext}\n\n---\n\nPlease answer the user's question using the above information where relevant. If the information doesn't help answer the question, respond normally. Always cite your sources when using information from the knowledge base.`
+            };
+            
+            // Insert context message before the last user message
+            enhancedMessages = [
+              ...messages.slice(0, -1),
+              contextMessage,
+              lastMessage
+            ];
+          }
+        } catch (error) {
+          console.warn('RAG context retrieval failed:', error);
+          // Continue without RAG context
+        }
+      }
+    }
+
+    // Use existing generateStream method with enhanced messages
+    yield* this.generateStream(enhancedMessages, options);
   }
 
   async unload() {

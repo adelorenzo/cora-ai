@@ -1,20 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Settings, Trash2, Cpu, Zap, Loader2, Sparkles } from 'lucide-react';
+import { Send, Settings, Trash2, Cpu, Zap, Loader2, Sparkles, Database, Upload, BookOpen } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog';
+import { Badge } from './components/ui/badge';
 import MarkdownRenderer from './components/MarkdownRenderer';
 import ErrorBoundary from './components/ErrorBoundary';
 import ThemeSwitcher from './components/ThemeSwitcher';
 import PersonaSelector from './components/PersonaSelector';
 import ModelSelector from './components/ModelSelector';
+import DocumentUpload from './components/DocumentUpload';
+import KnowledgeBase from './components/KnowledgeBase';
 import { useTheme } from './contexts/ThemeContext';
 import { usePersona } from './contexts/PersonaContext';
+import { useRAG } from './hooks/useRAG';
 import llmService from './lib/llm-service';
 import { cn } from './lib/utils';
 
 function App() {
   const { currentTheme } = useTheme();
   const { activePersonaData } = usePersona();
+  const { ragState, isRAGEnabled, getRAGStatus, initializeRAG, updateStats } = useRAG();
   
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -27,14 +32,29 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [temperature, setTemperature] = useState(0.7);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [knowledgeBaseOpen, setKnowledgeBaseOpen] = useState(false);
+  const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const messagesEndRef = useRef(null);
-  const systemMessages = [
-    { role: "system", content: activePersonaData?.systemPrompt || "You are a concise, helpful assistant that runs 100% locally in the user's browser." }
-  ];
+  const getSystemMessages = () => {
+    const basePrompt = activePersonaData?.systemPrompt || "You are a concise, helpful assistant that runs 100% locally in the user's browser.";
+    const ragPrompt = isRAGEnabled() ? 
+      "\n\nYou have access to a knowledge base with relevant documents. When answering questions, you can reference information from the uploaded documents if it's relevant to the user's query. Always cite your sources when using information from the knowledge base." 
+      : "";
+    
+    return [
+      { role: "system", content: basePrompt + ragPrompt }
+    ];
+  };
 
   useEffect(() => {
     loadAvailableModels();
-  }, []);
+    
+    // Initialize RAG service in background (non-blocking)
+    initializeRAG().catch(error => {
+      console.warn('RAG initialization failed on startup:', error);
+      // Continue without RAG - it can be initialized later when needed
+    });
+  }, [initializeRAG]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -104,6 +124,7 @@ function App() {
     }
 
     const userMessage = { role: 'user', content: input.trim() };
+    const userQuery = input.trim();
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -113,9 +134,18 @@ function App() {
     setMessages(prev => [...prev, assistantMessage]);
 
     try {
-      const allMessages = [...systemMessages, ...messages, userMessage];
-      const stream = llmService.generateStream(allMessages, { 
-        temperature: activePersonaData?.temperature || temperature 
+      const systemMessages = getSystemMessages();
+      const allMessages = [
+        ...systemMessages,
+        ...messages,
+        userMessage
+      ];
+
+      // Use the enhanced chat method that handles RAG context automatically
+      const stream = llmService.chat(allMessages, { 
+        temperature: activePersonaData?.temperature || temperature,
+        ragLimit: 5,
+        ragThreshold: 0.7
       });
 
       for await (const delta of stream) {
@@ -187,6 +217,45 @@ function App() {
           <div className="flex items-center gap-2">
             <PersonaSelector />
             <ThemeSwitcher />
+            
+            {/* RAG Status Badge */}
+            {isRAGEnabled() && (
+              <Badge 
+                variant="default" 
+                className="bg-green-500 text-white hover:bg-green-600 cursor-pointer"
+                onClick={() => setKnowledgeBaseOpen(true)}
+              >
+                RAG • {ragState.indexedCount} docs
+              </Badge>
+            )}
+            
+            {/* Knowledge Base Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setKnowledgeBaseOpen(true)}
+              className={cn(
+                "transition-colors",
+                isRAGEnabled() 
+                  ? "text-green-600 hover:text-green-700 hover:bg-green-50" 
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              )}
+              title={isRAGEnabled() ? "Knowledge Base (Active)" : "Knowledge Base"}
+            >
+              <BookOpen className="h-5 w-5" />
+            </Button>
+            
+            {/* Document Upload Toggle */}
+            <Button
+              variant={showDocumentUpload ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => setShowDocumentUpload(!showDocumentUpload)}
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Document Upload"
+            >
+              <Upload className="h-5 w-5" />
+            </Button>
+            
             <Button
               variant="ghost"
               size="icon"
@@ -233,6 +302,19 @@ function App() {
             )}
           </span>
         </div>
+
+        {/* Document Upload Section */}
+        {showDocumentUpload && (
+          <div className="mx-6 mb-4">
+            <DocumentUpload
+              onDocumentsChange={() => {
+                // Update RAG stats when documents change
+                updateStats();
+              }}
+              className="bg-card rounded-2xl p-6 border border-border"
+            />
+          </div>
+        )}
 
         {/* Chat Container - fills remaining space */}
         <div className="flex-1 flex flex-col mx-6 my-4 bg-card rounded-2xl shadow-xl backdrop-blur-sm overflow-hidden border border-border">
@@ -318,11 +400,11 @@ function App() {
             <div className="space-y-4 mt-4">
               {runtime === "webgpu" && models.length > 0 && (
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Model</label>
+                  <label className="text-sm font-medium text-foreground">Model</label>
                   <select
                     value={selectedModel || ''}
                     onChange={(e) => handleModelChange(e.target.value)}
-                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
                   >
                     <option value="">Select a model...</option>
                     {models.map((model) => (
@@ -332,29 +414,29 @@ function App() {
                     ))}
                   </select>
                   {!llmService.engine && selectedModel && (
-                    <button
+                    <Button
                       onClick={() => initializeLLM(selectedModel)}
-                      className="mt-2 w-full bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
+                      className="mt-2 w-full"
                       disabled={isInitializing}
                     >
                       {isInitializing ? 'Loading...' : 'Load Model'}
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
               
               {runtime === "wasm" && !llmService.engine && (
-                <button
+                <Button
                   onClick={() => initializeLLM()}
-                  className="w-full bg-purple-500 hover:bg-purple-600 text-white rounded-lg px-4 py-2 text-sm transition-colors"
+                  className="w-full"
                   disabled={isInitializing}
                 >
                   {isInitializing ? 'Loading WASM...' : 'Initialize WASM Model'}
-                </button>
+                </Button>
               )}
               
               <div>
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-sm font-medium text-foreground">
                   Temperature: {temperature}
                 </label>
                 <input
@@ -364,21 +446,31 @@ function App() {
                   step="0.1"
                   value={temperature}
                   onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                  className="w-full mt-1 accent-purple-500"
+                  className="w-full mt-1 accent-primary"
                 />
               </div>
 
-              <div className="pt-4 border-t border-gray-200">
-                <p className="text-xs text-gray-600">
+              <div className="pt-4 border-t border-border">
+                <p className="text-xs text-muted-foreground">
                   Runtime: {runtime === "webgpu" ? "WebGPU (Optimal)" : "WASM (Fallback)"}
                 </p>
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Model: {selectedModel || "Loading..."}
                 </p>
               </div>
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Knowledge Base Modal */}
+        <KnowledgeBase
+          open={knowledgeBaseOpen}
+          onOpenChange={setKnowledgeBaseOpen}
+          onRAGStatusChange={() => {
+            // Update RAG stats when knowledge base changes
+            updateStats();
+          }}
+        />
       </div>
     </div>
   );
