@@ -8,12 +8,14 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ThemeSwitcher from './components/ThemeSwitcher';
 import PersonaSelector from './components/PersonaSelector';
 import ModelSelector from './components/ModelSelector';
-import DocumentUpload from './components/DocumentUpload';
-import KnowledgeBase from './components/KnowledgeBase';
+// Lazy load RAG components to reduce initial bundle size
+const DocumentUpload = React.lazy(() => import('./components/DocumentUpload'));
+const KnowledgeBase = React.lazy(() => import('./components/KnowledgeBase'));
 import { useTheme } from './contexts/ThemeContext';
 import { usePersona } from './contexts/PersonaContext';
 import { useRAG } from './hooks/useRAG';
 import llmService from './lib/llm-service';
+import performanceOptimizer from './lib/performance-optimizer';
 import { cn } from './lib/utils';
 
 function App() {
@@ -49,11 +51,20 @@ function App() {
   useEffect(() => {
     loadAvailableModels();
     
-    // Initialize RAG service in background (non-blocking)
-    initializeRAG().catch(error => {
-      console.warn('RAG initialization failed on startup:', error);
-      // Continue without RAG - it can be initialized later when needed
-    });
+    // Track app initialization
+    performanceOptimizer.trackInteraction('app-start');
+    
+    // Intelligent RAG initialization - only if user has used RAG before
+    if (performanceOptimizer.shouldPreloadAdvancedFeatures()) {
+      initializeRAG().catch(error => {
+        console.warn('RAG preload failed:', error);
+      });
+    }
+    
+    // Start performance monitoring
+    setTimeout(() => {
+      performanceOptimizer.preloadCriticalComponents();
+    }, 3000);
   }, []); // Remove initializeRAG from dependencies to prevent infinite loop
 
   useEffect(() => {
@@ -240,7 +251,10 @@ function App() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setKnowledgeBaseOpen(true)}
+              onClick={() => {
+                performanceOptimizer.trackInteraction('knowledge-base-open');
+                setKnowledgeBaseOpen(true);
+              }}
               className={cn(
                 "transition-colors",
                 isRAGEnabled() 
@@ -256,7 +270,10 @@ function App() {
             <Button
               variant={showDocumentUpload ? "secondary" : "ghost"}
               size="icon"
-              onClick={() => setShowDocumentUpload(!showDocumentUpload)}
+              onClick={() => {
+                performanceOptimizer.trackInteraction('document-upload-toggle');
+                setShowDocumentUpload(!showDocumentUpload);
+              }}
               className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               title="Document Upload"
             >
@@ -313,13 +330,19 @@ function App() {
         {/* Document Upload Section */}
         {showDocumentUpload && (
           <div className="mx-6 mb-4">
-            <DocumentUpload
-              onDocumentsChange={() => {
-                // Update RAG stats when documents change
-                updateStats();
-              }}
-              className="bg-card rounded-2xl p-6 border border-border"
-            />
+            <React.Suspense fallback={
+              <div className="bg-card rounded-2xl p-6 border border-border animate-pulse">
+                <div className="h-32 bg-muted rounded"></div>
+              </div>
+            }>
+              <DocumentUpload
+                onDocumentsChange={() => {
+                  // Update RAG stats when documents change
+                  updateStats();
+                }}
+                className="bg-card rounded-2xl p-6 border border-border"
+              />
+            </React.Suspense>
           </div>
         )}
 
@@ -434,14 +457,25 @@ function App() {
         </Dialog>
 
         {/* Knowledge Base Modal */}
-        <KnowledgeBase
-          open={knowledgeBaseOpen}
-          onOpenChange={setKnowledgeBaseOpen}
-          onRAGStatusChange={() => {
-            // Update RAG stats when knowledge base changes
-            updateStats();
-          }}
-        />
+        {knowledgeBaseOpen && (
+          <React.Suspense fallback={
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="bg-card rounded-lg p-8">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+                <p className="mt-4 text-sm text-muted-foreground">Loading knowledge base...</p>
+              </div>
+            </div>
+          }>
+            <KnowledgeBase
+              open={knowledgeBaseOpen}
+              onOpenChange={setKnowledgeBaseOpen}
+              onRAGStatusChange={() => {
+                // Update RAG stats when knowledge base changes
+                updateStats();
+              }}
+            />
+          </React.Suspense>
+        )}
       </div>
     </div>
   );

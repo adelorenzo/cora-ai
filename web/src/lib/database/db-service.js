@@ -3,32 +3,36 @@
  * Provides offline-first data persistence with PouchDB
  */
 
-// Try importing PouchDB modules - fallback to localStorage if it fails
+// Browser-optimized PouchDB initialization - use only necessary modules
 let PouchDB = null;
+let initialized = false;
 
-// Function to initialize PouchDB dynamically
+// Function to initialize PouchDB with browser-specific optimizations
 async function initPouchDB() {
-  if (PouchDB) return PouchDB;
+  if (initialized) return PouchDB;
   
   try {
-    // Import modules with proper default handling
-    const { default: PouchDBCore } = await import('pouchdb-core');
-    const { default: IdbAdapter } = await import('pouchdb-adapter-idb');
-    const { default: MapReducePlugin } = await import('pouchdb-mapreduce');
-    const { default: ReplicationPlugin } = await import('pouchdb-replication');
-    const { default: FindPlugin } = await import('pouchdb-find');
+    // Import only essential modules for browser compatibility
+    const PouchDBCore = await import('pouchdb-core');
+    const IdbAdapter = await import('pouchdb-adapter-idb');
+    const FindPlugin = await import('pouchdb-find');
     
-    // Configure PouchDB with required plugins
-    PouchDB = PouchDBCore
-      .plugin(IdbAdapter)
-      .plugin(MapReducePlugin)
-      .plugin(ReplicationPlugin)
-      .plugin(FindPlugin);
+    // Use default exports properly
+    const Core = PouchDBCore.default || PouchDBCore;
+    const Idb = IdbAdapter.default || IdbAdapter;
+    const Find = FindPlugin.default || FindPlugin;
+    
+    // Configure PouchDB with minimal required plugins
+    PouchDB = Core
+      .plugin(Idb)
+      .plugin(Find);
       
-    console.log('PouchDB configured successfully');
+    initialized = true;
+    console.log('PouchDB configured successfully (browser-optimized)');
     return PouchDB;
   } catch (error) {
     console.warn('PouchDB import failed, will use localStorage fallback:', error);
+    initialized = true; // Prevent retries
     return null;
   }
 }
@@ -37,6 +41,10 @@ async function initPouchDB() {
 class StorageFallback {
   constructor(name) {
     this.name = name;
+    // Browser environment check
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      throw new Error('StorageFallback requires browser environment with localStorage');
+    }
     this.storage = localStorage;
     this.prefix = `cora_${name}_`;
   }
@@ -230,6 +238,11 @@ class DatabaseService {
   async initialize() {
     if (this.initialized) return;
 
+    // Browser environment check
+    if (typeof window === 'undefined') {
+      throw new Error('Database service requires browser environment');
+    }
+
     try {
       // Check storage quota
       if ('storage' in navigator && 'estimate' in navigator.storage) {
@@ -264,8 +277,9 @@ class DatabaseService {
           // Try PouchDB with IndexedDB adapter first
           db = new PouchDBConstructor(`cora_${name}`, {
             adapter: 'idb',
-            auto_compaction: true,
-            revs_limit: 1 // Reduce storage overhead
+            auto_compaction: false, // Disable to avoid Node.js dependencies
+            revs_limit: 1, // Reduce storage overhead
+            size: 10 // Start with small size
           });
 
           // Test the database by performing a simple operation

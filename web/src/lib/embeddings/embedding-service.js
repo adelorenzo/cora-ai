@@ -3,11 +3,26 @@
  * Provides 100% client-side text embeddings with all-MiniLM-L6-v2 model
  */
 
-import { pipeline, env } from '@xenova/transformers';
+// Import safe configuration
+import { configureTransformers, getSafePipelineConfig } from './transformers-config.js';
 
-// Configure Transformers.js for browser environment
-env.allowRemoteModels = false;
-env.allowLocalModels = true;
+// Lazy load transformers library to reduce initial bundle size
+let transformersModule = null;
+let pipeline = null;
+let env = null;
+
+// Initialize transformers module only when needed
+const initTransformers = async () => {
+  if (!transformersModule) {
+    // Configure safe environment before loading
+    await configureTransformers();
+    
+    transformersModule = await import('@xenova/transformers');
+    pipeline = transformersModule.pipeline;
+    env = transformersModule.env;
+  }
+  return transformersModule;
+};
 
 /**
  * Embedding service class for generating text embeddings in the browser
@@ -65,11 +80,18 @@ class EmbeddingService {
    */
   async _loadModel() {
     try {
+      // First load transformers library
+      this._reportProgress(0.05, 'Loading transformers library...');
+      await initTransformers();
+      
       // Report initial progress
       this._reportProgress(0.1, 'Loading embedding model...');
 
+      // Get safe pipeline configuration
+      const safeConfig = getSafePipelineConfig();
+      
       this.model = await pipeline('feature-extraction', this.modelName, {
-        quantized: true, // Use quantized model for better performance
+        ...safeConfig,
         progress_callback: (data) => {
           if (data.status === 'downloading') {
             const progress = 0.1 + (data.progress || 0) * 0.8;
