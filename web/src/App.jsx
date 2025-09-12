@@ -4,39 +4,19 @@ import { Button } from './components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog';
 import MarkdownRenderer from './components/MarkdownRenderer';
 import ErrorBoundary from './components/ErrorBoundary';
+import ThemeSwitcher from './components/ThemeSwitcher';
+import PersonaSelector from './components/PersonaSelector';
+import ModelSelector from './components/ModelSelector';
+import { useTheme } from './contexts/ThemeContext';
+import { usePersona } from './contexts/PersonaContext';
 import llmService from './lib/llm-service';
 import { cn } from './lib/utils';
 
 function App() {
-  // Test message with markdown to verify rendering
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: `# Welcome to WebLLM Chat!
-
-Here's what I can help you with:
-
-## Features
-- **Bold text** and *italic text*
-- Lists and bullet points
-- Code blocks with syntax highlighting
-
-### Code Example
-\`\`\`javascript
-const greeting = "Hello, World!";
-console.log(greeting);
-\`\`\`
-
-### Lists
-1. First item
-2. Second item
-3. Third item
-
-> This is a blockquote with some important information.
-
-Feel free to ask me anything! I run entirely in your browser using WebGPU or WASM.`
-    }
-  ]);
+  const { currentTheme } = useTheme();
+  const { activePersonaData } = usePersona();
+  
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -48,9 +28,9 @@ Feel free to ask me anything! I run entirely in your browser using WebGPU or WAS
   const [temperature, setTemperature] = useState(0.7);
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef(null);
-  const [systemMessages] = useState([
-    { role: "system", content: "You are a concise, helpful assistant that runs 100% locally in the user's browser." }
-  ]);
+  const systemMessages = [
+    { role: "system", content: activePersonaData?.systemPrompt || "You are a concise, helpful assistant that runs 100% locally in the user's browser." }
+  ];
 
   useEffect(() => {
     loadAvailableModels();
@@ -134,7 +114,9 @@ Feel free to ask me anything! I run entirely in your browser using WebGPU or WAS
 
     try {
       const allMessages = [...systemMessages, ...messages, userMessage];
-      const stream = llmService.generateStream(allMessages, { temperature });
+      const stream = llmService.generateStream(allMessages, { 
+        temperature: activePersonaData?.temperature || temperature 
+      });
 
       for await (const delta of stream) {
         if (delta.content) {
@@ -188,26 +170,28 @@ Feel free to ask me anything! I run entirely in your browser using WebGPU or WAS
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50">
+    <div className="h-screen flex flex-col bg-background text-foreground">
       <div className="flex flex-col h-full">
         {/* Header */}
-        <header className="flex items-center justify-between px-6 py-4 bg-white/80 backdrop-blur-md border-b border-purple-100 shadow-sm">
+        <header className="flex items-center justify-between px-6 py-4 bg-card backdrop-blur-md border-b border-border shadow-sm">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
               <div className="absolute inset-0 w-3 h-3 bg-green-500 rounded-full animate-ping"></div>
             </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
-              WebLLM Chat
+            <h1 className="text-xl font-bold text-foreground">
+              Cora
             </h1>
-            <span className="text-xs text-gray-600 font-medium">100% Local • No Server • No Keys</span>
+            <span className="text-xs text-muted-foreground font-medium">100% Local • No Server • No Keys</span>
           </div>
           <div className="flex items-center gap-2">
+            <PersonaSelector />
+            <ThemeSwitcher />
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSettingsOpen(true)}
-              className="text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               <Settings className="h-5 w-5" />
             </Button>
@@ -215,7 +199,7 @@ Feel free to ask me anything! I run entirely in your browser using WebGPU or WAS
               variant="ghost"
               size="icon"
               onClick={clearChat}
-              className="text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               <Trash2 className="h-5 w-5" />
             </Button>
@@ -223,17 +207,22 @@ Feel free to ask me anything! I run entirely in your browser using WebGPU or WAS
         </header>
 
         {/* Status Bar */}
-        <div className="px-6 py-2 bg-gradient-to-r from-purple-100/50 to-pink-100/50 backdrop-blur-sm flex items-center gap-3 border-b border-purple-100">
+        <div className="px-6 py-2 bg-secondary/50 backdrop-blur-sm flex items-center gap-3 border-b border-border">
+          <ModelSelector 
+            currentModel={selectedModel}
+            onModelSelect={handleModelChange}
+            runtime={runtime}
+          />
           <div className={cn(
             "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2 shadow-sm",
-            runtime === "webgpu" ? "bg-gradient-to-r from-green-400 to-emerald-400 text-white" : 
-            runtime === "wasm" ? "bg-gradient-to-r from-amber-400 to-yellow-400 text-white" :
-            "bg-gray-200 text-gray-600"
+            runtime === "webgpu" ? "bg-green-500 text-white" : 
+            runtime === "wasm" ? "bg-amber-500 text-white" :
+            "bg-muted text-muted-foreground"
           )}>
             {runtime === "webgpu" ? <Zap className="h-3 w-3" /> : <Cpu className="h-3 w-3" />}
             {runtime === "detecting" ? "Detecting..." : runtime.toUpperCase()}
           </div>
-          <span className="text-xs text-gray-600 font-medium">
+          <span className="text-xs text-muted-foreground font-medium">
             {isInitializing ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -246,14 +235,14 @@ Feel free to ask me anything! I run entirely in your browser using WebGPU or WAS
         </div>
 
         {/* Chat Container - fills remaining space */}
-        <div className="flex-1 flex flex-col mx-6 my-4 bg-white/80 rounded-2xl shadow-xl backdrop-blur-sm overflow-hidden border border-purple-100">
+        <div className="flex-1 flex flex-col mx-6 my-4 bg-card rounded-2xl shadow-xl backdrop-blur-sm overflow-hidden border border-border">
           {/* Messages - fills available space */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-white to-purple-50/30">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-card to-secondary/10">
             {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                <Sparkles className="h-12 w-12 mb-4 text-purple-400" />
-                <p className="text-lg font-semibold text-gray-700">Start a conversation</p>
-                <p className="text-sm mt-2 text-gray-600">Your AI assistant runs entirely in this browser</p>
+              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                <Sparkles className="h-12 w-12 mb-4 text-primary" />
+                <p className="text-lg font-semibold text-foreground">Start a conversation</p>
+                <p className="text-sm mt-2 text-muted-foreground">Your AI assistant runs entirely in this browser</p>
               </div>
             ) : (
               messages.map((msg, idx) => (
@@ -295,7 +284,7 @@ Feel free to ask me anything! I run entirely in your browser using WebGPU or WAS
           </div>
 
           {/* Input Form */}
-          <form onSubmit={handleSubmit} className="p-4 bg-white border-t border-purple-100">
+          <form onSubmit={handleSubmit} className="p-4 bg-card border-t border-border">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -303,12 +292,12 @@ Feel free to ask me anything! I run entirely in your browser using WebGPU or WAS
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask anything..."
                 disabled={isLoading || isInitializing}
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                className="flex-1 bg-secondary border border-border rounded-xl px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               />
               <Button
                 type="submit"
                 disabled={isLoading || isInitializing || !input.trim()}
-                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 shadow-lg transition-all transform hover:scale-105"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 shadow-lg transition-all transform hover:scale-105"
               >
                 {isLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
