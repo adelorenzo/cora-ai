@@ -273,14 +273,25 @@ class DatabaseService {
       // Try to initialize PouchDB first
       console.log('[DB Service] Initializing PouchDB...');
       await this._initializePouchDB();
-      
+
+      // Set initialized flag AFTER collections are created but BEFORE vector index
+      // This prevents getDb() from throwing in initializeVectorIndex()
       this.initialized = true;
+
+      // Initialize default settings if not exists
+      await this.initializeSettings();
+
+      // Initialize vector index for fast similarity search
+      await this.initializeVectorIndex();
+
       const elapsed = Date.now() - startTime;
       const storageType = this.usingFallback ? 'localStorage fallback' : 'IndexedDB';
       console.log(`[DB Service] Initialization completed in ${elapsed}ms (using ${storageType})`);
     } catch (error) {
       console.error('[DB Service] Initialization failed:', error);
       console.error('[DB Service] Error stack:', error.stack);
+      // Ensure initialized is false on error
+      this.initialized = false;
       throw new Error(`Database initialization failed: ${error.message}`);
     }
   }
@@ -345,11 +356,7 @@ class DatabaseService {
       }
     }
 
-    // Initialize default settings if not exists
-    await this.initializeSettings();
-
-    // Initialize vector index for fast similarity search
-    await this.initializeVectorIndex();
+    // Don't initialize settings and vector index here - they will be called after initialized flag is set
   }
 
   /**

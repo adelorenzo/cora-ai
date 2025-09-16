@@ -21,6 +21,7 @@ import smartFetchService from './lib/smart-fetch-service';
 import functionCallingService from './lib/function-calling-service';
 import settingsService from './lib/settings-service';
 import conversationManager from './lib/conversation-manager';
+import autoIndexService from './lib/auto-index-service';
 import { cn } from './lib/utils';
 
 function App() {
@@ -137,27 +138,37 @@ function App() {
   useEffect(() => {
     console.log('[App] Starting initialization...');
     loadAvailableModels();
-    
+
     // Track app initialization
     performanceOptimizer.trackInteraction('app-start');
     console.log('[App] Performance tracking started');
-    
+
+    // Start auto-indexing service for seamless document processing
+    console.log('[App] Starting auto-index service...');
+    autoIndexService.start();
+
     // Intelligent RAG initialization - only if user has used RAG before
     const shouldPreload = performanceOptimizer.shouldPreloadAdvancedFeatures();
     console.log('[App] Should preload RAG:', shouldPreload);
-    
+
     if (shouldPreload) {
       console.log('[App] Attempting RAG preload...');
       initializeRAG().catch(error => {
         console.warn('[App] RAG preload failed:', error);
       });
     }
-    
+
     // Start performance monitoring
     setTimeout(() => {
       console.log('[App] Starting critical component preload...');
       performanceOptimizer.preloadCriticalComponents();
     }, 3000);
+
+    // Cleanup on unmount
+    return () => {
+      console.log('[App] Stopping auto-index service...');
+      autoIndexService.stop();
+    };
   }, []); // Remove initializeRAG from dependencies to prevent infinite loop
 
   useEffect(() => {

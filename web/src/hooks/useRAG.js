@@ -208,6 +208,14 @@ export function useRAG() {
     };
   }, [ragState, isRAGEnabled]);
 
+  // Auto-initialize RAG on first mount
+  useEffect(() => {
+    if (!ragState.initialized && !ragState.initializing) {
+      console.log('[useRAG] Auto-initializing RAG service...');
+      initializeRAG();
+    }
+  }, []); // Run only once on mount
+
   // Auto-update stats periodically when initialized
   useEffect(() => {
     if (!ragState.initialized) return;

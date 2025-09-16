@@ -85,26 +85,18 @@ const KnowledgeBase = ({ open, onOpenChange, onRAGStatusChange }) => {
     }
   };
 
-  const initializeRAG = async () => {
-    setInitializingRAG(true);
-    try {
-      await ragService.initialize((progress) => {
-        console.log('RAG initialization progress:', progress);
-      });
-      setRagInitialized(true);
-      
-      // Don't auto-index documents to prevent memory issues
-      // Users can manually click "Index All" button after initialization
-      console.log('RAG initialized successfully. Use "Index All" button to index documents.');
-      
-      await loadData(); // Refresh data
-    } catch (error) {
-      console.error('Failed to initialize RAG:', error);
-      alert(`Failed to initialize RAG: ${error.message}`);
-    } finally {
-      setInitializingRAG(false);
-    }
-  };
+  // RAG auto-initializes via useRAG hook, no manual initialization needed
+  // Check RAG status periodically
+  useEffect(() => {
+    const checkRAGStatus = () => {
+      setRagInitialized(ragService.initialized);
+      setInitializingRAG(ragService.isInitializing || false);
+    };
+
+    checkRAGStatus();
+    const interval = setInterval(checkRAGStatus, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const performSearch = async (query) => {
     if (!ragInitialized) return;
@@ -242,28 +234,15 @@ const KnowledgeBase = ({ open, onOpenChange, onRAGStatusChange }) => {
               />
             </div>
             
-            {!ragInitialized && (
-              <Button 
-                onClick={initializeRAG} 
-                disabled={initializingRAG}
-                variant="outline"
-                className="whitespace-nowrap"
-              >
-                {initializingRAG ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Initializing...
-                  </>
-                ) : (
-                  <>
-                    <Settings className="w-4 h-4 mr-2" />
-                    Initialize RAG
-                  </>
-                )}
-              </Button>
+            {/* Show loading indicator if RAG is initializing */}
+            {!ragInitialized && initializingRAG && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Preparing search...</span>
+              </div>
             )}
 
-            {ragInitialized && documents.some(doc => !doc.indexed) && (
+            {ragInitialized && documents.some(doc => !doc.indexed && doc.status === 'pending') && (
               <Button 
                 onClick={async () => {
                   const pendingDocs = documents.filter(doc => !doc.indexed && doc.status !== 'error');

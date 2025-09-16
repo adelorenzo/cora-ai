@@ -118,9 +118,42 @@ const DocumentUpload = ({ onDocumentsChange, className }) => {
 
         setUploadProgress(prev => ({ ...prev, [fileId]: 60 }));
 
-        // Don't auto-queue for indexing - wait for manual indexing from Knowledge Base
-        // This prevents trying to index before RAG is initialized
-        // ragService.queueForIndexing(doc);
+        // Auto-index the document if RAG is initialized
+        try {
+          if (ragService.initialized) {
+            setUploadProgress(prev => ({ ...prev, [fileId]: 80 }));
+            await ragService.addDocument({
+              content: content,
+              metadata: {
+                title: doc.title,
+                filename: doc.filename,
+                documentId: doc._id,
+                type: contentType
+              }
+            });
+
+            // Update document status to indexed
+            await dbService.updateDocument(doc._id, {
+              status: 'completed',
+              indexed: true
+            });
+          } else {
+            // Queue for indexing once RAG is ready
+            console.log('[DocumentUpload] RAG not ready, document will be indexed when ready');
+            await dbService.updateDocument(doc._id, {
+              status: 'pending',
+              indexed: false
+            });
+          }
+        } catch (indexError) {
+          console.warn('[DocumentUpload] Failed to index document:', indexError);
+          await dbService.updateDocument(doc._id, {
+            status: 'error',
+            indexed: false,
+            error: indexError.message
+          });
+        }
+
         setUploadProgress(prev => ({ ...prev, [fileId]: 100 }));
 
         // Remove progress after delay
