@@ -74,11 +74,22 @@ The app includes carefully selected models optimized for browser performance:
 
 ## Recent Updates
 
-### Latest Changes
+### Sprint 4 Complete - Settings Persistence (Latest)
+- **Comprehensive settings service** with localStorage integration
+- **All preferences persist** across browser sessions:
+  - Selected AI model and temperature
+  - Theme and persona selections
+  - Custom personas with full CRUD operations
+  - Chat history (up to 500 messages)
+  - Web search and RAG toggles
+- **Export/import functionality** for backing up settings
+- **Auto-save on page unload** ensures no data loss
+- **Backward compatible** with existing localStorage keys
+
+### Previous Updates
 - **Fixed scrolling** in main chat window with custom scrollbar styling
 - **Added DeepSeek model** back to the curated list
 - **Improved web search UI** - shows clean animation instead of raw results
-- **Removed incompatible models** (Llama 3.2 1B, TinyLlama) that don't support function calling
 - **Enhanced RAG system** with better error handling and UI feedback
 
 ## Browser Support

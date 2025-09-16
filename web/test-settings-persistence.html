@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings Persistence Test - Sprint 4</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #fff;
+        }
+        h1 {
+            color: #60a5fa;
+            border-bottom: 2px solid #1e40af;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-title {
+            color: #60a5fa;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .success {
+            background: #065f46;
+            color: #10b981;
+            border: 1px solid #10b981;
+        }
+        .error {
+            background: #7f1d1d;
+            color: #f87171;
+            border: 1px solid #ef4444;
+        }
+        .info {
+            background: #1e3a8a;
+            color: #93c5fd;
+            border: 1px solid #60a5fa;
+        }
+        button {
+            background: #1e40af;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1e3a8a;
+        }
+        #log {
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px;
+        }
+        .log-success { color: #10b981; }
+        .log-error { color: #ef4444; }
+        .log-info { color: #60a5fa; }
+        .log-warning { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Settings Persistence Test Suite - Sprint 4</h1>
+    
+    <div class="test-section">
+        <div class="test-title">Settings Service Tests</div>
+        <button onclick="testBasicOperations()">Test Basic Operations</button>
+        <button onclick="testModelPersistence()">Test Model Persistence</button>
+        <button onclick="testThemePersistence()">Test Theme Persistence</button>
+        <button onclick="testPersonaPersistence()">Test Persona Persistence</button>
+        <button onclick="testChatHistory()">Test Chat History</button>
+        <button onclick="testExportImport()">Test Export/Import</button>
+        <button onclick="clearAllSettings()">Clear All Settings</button>
+        <button onclick="runAllTests()">Run All Tests</button>
+        <div id="test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-title">Current Settings</div>
+        <button onclick="displayCurrentSettings()">Show Current Settings</button>
+        <div id="current-settings"></div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-title">Test Log</div>
+        <button onclick="clearLog()">Clear Log</button>
+        <div id="log"></div>
+    </div>
+
+    <script type="module">
+        import settingsService from './src/lib/settings-service.js';
+        
+        window.settingsService = settingsService;
+        
+        // Logging utility
+        window.log = function(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${type.toUpperCase()}]`, message);
+        };
+
+        // Test utilities
+        function showResult(message, success = true) {
+            const resultsDiv = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${success ? 'success' : 'error'}`;
+            resultDiv.textContent = message;
+            resultsDiv.appendChild(resultDiv);
+            log(message, success ? 'success' : 'error');
+        }
+
+        function showInfo(message) {
+            const resultsDiv = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result info';
+            resultDiv.textContent = message;
+            resultsDiv.appendChild(resultDiv);
+            log(message, 'info');
+        }
+
+        // Test functions
+        window.testBasicOperations = function() {
+            log('Testing basic operations...', 'info');
+            document.getElementById('test-results').innerHTML = '';
+            
+            try {
+                // Test get/set
+                settingsService.set('testKey', 'testValue');
+                const value = settingsService.get('testKey');
+                if (value === 'testValue') {
+                    showResult('✓ Get/Set operations work correctly');
+                } else {
+                    showResult('✗ Get/Set operations failed', false);
+                }
+                
+                // Test update
+                settingsService.update({ testKey2: 'value2', testKey3: 'value3' });
+                if (settingsService.get('testKey2') === 'value2' && 
+                    settingsService.get('testKey3') === 'value3') {
+                    showResult('✓ Update operation works correctly');
+                } else {
+                    showResult('✗ Update operation failed', false);
+                }
+                
+                // Test persistence
+                const stored = localStorage.getItem('cora-settings');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (parsed.testKey === 'testValue') {
+                        showResult('✓ Settings persist to localStorage');
+                    } else {
+                        showResult('✗ Settings not persisting correctly', false);
+                    }
+                } else {
+                    showResult('✗ No settings found in localStorage', false);
+                }
+                
+            } catch (error) {
+                showResult(`✗ Error during basic operations: ${error.message}`, false);
+            }
+        };
+
+        window.testModelPersistence = function() {
+            log('Testing model persistence...', 'info');
+            document.getElementById('test-results').innerHTML = '';
+            
+            try {
+                const testModel = 'DeepSeek-R1-Distill-Qwen-1.5B-q4f16_1-MLC';
+                settingsService.setModel(testModel);
+                
+                if (settingsService.getModel() === testModel) {
+                    showResult('✓ Model selection saved');
+                } else {
+                    showResult('✗ Model selection not saved', false);
+                }
+                
+                // Simulate page reload by creating new instance
+                const newSettings = Object.create(settingsService);
+                newSettings.load();
+                
+                if (newSettings.settings.model === testModel) {
+                    showResult('✓ Model selection persists across reload');
+                } else {
+                    showResult('✗ Model selection lost on reload', false);
+                }
+                
+            } catch (error) {
+                showResult(`✗ Error during model persistence test: ${error.message}`, false);
+            }
+        };
+
+        window.testThemePersistence = function() {
+            log('Testing theme persistence...', 'info');
+            document.getElementById('test-results').innerHTML = '';
+            
+            try {
+                const themes = ['light', 'dark', 'ocean', 'forest', 'sunset'];
+                
+                for (const theme of themes) {
+                    settingsService.setTheme(theme);
+                    if (settingsService.getTheme() === theme) {
+                        showResult(`✓ Theme '${theme}' saved correctly`);
+                    } else {
+                        showResult(`✗ Theme '${theme}' not saved`, false);
+                    }
+                }
+                
+                // Test persistence
+                const finalTheme = 'midnight';
+                settingsService.setTheme(finalTheme);
+                const stored = JSON.parse(localStorage.getItem('cora-settings'));
+                
+                if (stored.theme === finalTheme) {
+                    showResult('✓ Theme persists to localStorage');
+                } else {
+                    showResult('✗ Theme not persisting', false);
+                }
+                
+            } catch (error) {
+                showResult(`✗ Error during theme persistence test: ${error.message}`, false);
+            }
+        };
+
+        window.testPersonaPersistence = function() {
+            log('Testing persona persistence...', 'info');
+            document.getElementById('test-results').innerHTML = '';
+            
+            try {
+                // Test setting persona
+                const testPersona = {
+                    id: 'assistant',
+                    name: 'Assistant',
+                    systemPrompt: 'You are a helpful assistant'
+                };
+                
+                settingsService.setPersona(testPersona);
+                const saved = settingsService.getPersona();
+                
+                if (saved && saved.id === testPersona.id) {
+                    showResult('✓ Persona saved correctly');
+                } else {
+                    showResult('✗ Persona not saved', false);
+                }
+                
+                // Test custom personas
+                const customPersona = {
+                    name: 'Test Bot',
+                    systemPrompt: 'You are a test bot',
+                    temperature: 0.5
+                };
+                
+                settingsService.addCustomPersona(customPersona);
+                const customPersonas = settingsService.getCustomPersonas();
+                
+                if (customPersonas.length > 0 && customPersonas[0].name === 'Test Bot') {
+                    showResult('✓ Custom persona added successfully');
+                    
+                    // Test removal
+                    const personaId = customPersonas[0].id;
+                    settingsService.removeCustomPersona(personaId);
+                    const remaining = settingsService.getCustomPersonas();
+                    
+                    if (remaining.findIndex(p => p.id === personaId) === -1) {
+                        showResult('✓ Custom persona removed successfully');
+                    } else {
+                        showResult('✗ Custom persona removal failed', false);
+                    }
+                } else {
+                    showResult('✗ Custom persona not added', false);
+                }
+                
+            } catch (error) {
+                showResult(`✗ Error during persona persistence test: ${error.message}`, false);
+            }
+        };
+
+        window.testChatHistory = function() {
+            log('Testing chat history...', 'info');
+            document.getElementById('test-results').innerHTML = '';
+            
+            try {
+                // Clear existing history
+                settingsService.clearChatHistory();
+                
+                // Add messages
+                const messages = [
+                    { role: 'user', content: 'Hello' },
+                    { role: 'assistant', content: 'Hi there!' },
+                    { role: 'user', content: 'How are you?' },
+                    { role: 'assistant', content: 'I am doing well, thank you!' }
+                ];
+                
+                for (const msg of messages) {
+                    settingsService.addToChatHistory(msg);
+                }
+                
+                const history = settingsService.getChatHistory();
+                
+                if (history.length === 4) {
+                    showResult('✓ Chat history saved correctly');
+                } else {
+                    showResult(`✗ Expected 4 messages, got ${history.length}`, false);
+                }
+                
+                // Test limit
+                for (let i = 0; i < 100; i++) {
+                    settingsService.addToChatHistory({
+                        role: 'user',
+                        content: `Message ${i}`
+                    });
+                }
+                
+                const limitedHistory = settingsService.getChatHistory(50);
+                if (limitedHistory.length === 50) {
+                    showResult('✓ Chat history limit works correctly');
+                } else {
+                    showResult(`✗ History limit failed: got ${limitedHistory.length} messages`, false);
+                }
+                
+                // Test clear
+                settingsService.clearChatHistory();
+                const cleared = settingsService.getChatHistory();
+                
+                if (cleared.length === 0) {
+                    showResult('✓ Chat history cleared successfully');
+                } else {
+                    showResult('✗ Chat history clear failed', false);
+                }
+                
+            } catch (error) {
+                showResult(`✗ Error during chat history test: ${error.message}`, false);
+            }
+        };
+
+        window.testExportImport = function() {
+            log('Testing export/import...', 'info');
+            document.getElementById('test-results').innerHTML = '';
+            
+            try {
+                // Set some test data
+                settingsService.update({
+                    model: 'test-model',
+                    theme: 'ocean',
+                    temperature: 0.8,
+                    webSearchEnabled: false,
+                    ragEnabled: true
+                });
+                
+                // Export
+                const exported = settingsService.export();
+                const parsed = JSON.parse(exported);
+                
+                if (parsed.model === 'test-model' && parsed.theme === 'ocean') {
+                    showResult('✓ Settings exported correctly');
+                } else {
+                    showResult('✗ Export data incorrect', false);
+                }
+                
+                // Modify settings
+                settingsService.update({
+                    model: 'different-model',
+                    theme: 'dark',
+                    temperature: 0.3
+                });
+                
+                // Import back
+                const importSuccess = settingsService.import(exported);
+                
+                if (importSuccess) {
+                    if (settingsService.getModel() === 'test-model' && 
+                        settingsService.getTheme() === 'ocean' &&
+                        settingsService.getTemperature() === 0.8) {
+                        showResult('✓ Settings imported successfully');
+                    } else {
+                        showResult('✗ Import data not restored correctly', false);
+                    }
+                } else {
+                    showResult('✗ Import failed', false);
+                }
+                
+                // Test invalid import
+                const invalidImport = settingsService.import('invalid json');
+                if (!invalidImport) {
+                    showResult('✓ Invalid import handled gracefully');
+                } else {
+                    showResult('✗ Invalid import not handled properly', false);
+                }
+                
+            } catch (error) {
+                showResult(`✗ Error during export/import test: ${error.message}`, false);
+            }
+        };
+
+        window.displayCurrentSettings = function() {
+            const settingsDiv = document.getElementById('current-settings');
+            const settings = settingsService.settings;
+            const stats = settingsService.getStats();
+            
+            const html = `
+                <div class="test-result info">
+                    <strong>Current Settings:</strong><br>
+                    Model: ${settings.model || 'None'}<br>
+                    Theme: ${settings.theme}<br>
+                    Temperature: ${settings.temperature}<br>
+                    Web Search: ${settings.webSearchEnabled ? 'Enabled' : 'Disabled'}<br>
+                    RAG: ${settings.ragEnabled ? 'Enabled' : 'Disabled'}<br>
+                    Auto-load Model: ${settings.autoLoadModel ? 'Yes' : 'No'}<br>
+                    Chat History: ${(settings.chatHistory || []).length} messages<br>
+                    Custom Personas: ${(settings.customPersonas || []).length}<br>
+                    <br>
+                    <strong>Statistics:</strong><br>
+                    Last Used: ${new Date(stats.lastUsed).toLocaleString()}<br>
+                    Storage Size: ${(stats.storageSize / 1024).toFixed(2)} KB<br>
+                </div>
+            `;
+            
+            settingsDiv.innerHTML = html;
+            log('Displayed current settings', 'info');
+        };
+
+        window.clearAllSettings = function() {
+            if (confirm('Are you sure you want to clear all settings?')) {
+                settingsService.clear();
+                showInfo('All settings cleared');
+                displayCurrentSettings();
+            }
+        };
+
+        window.clearLog = function() {
+            document.getElementById('log').innerHTML = '';
+        };
+
+        window.runAllTests = async function() {
+            log('Running all tests...', 'info');
+            document.getElementById('test-results').innerHTML = '';
+            
+            const tests = [
+                testBasicOperations,
+                testModelPersistence,
+                testThemePersistence,
+                testPersonaPersistence,
+                testChatHistory,
+                testExportImport
+            ];
+            
+            for (const test of tests) {
+                await new Promise(resolve => {
+                    test();
+                    setTimeout(resolve, 500);
+                });
+            }
+            
+            showInfo('All tests completed!');
+            displayCurrentSettings();
+        };
+
+        // Initialize
+        log('Settings Persistence Test Suite loaded', 'success');
+        log('Sprint 4 validation ready', 'info');
+        displayCurrentSettings();
+    </script>
+</body>
+</html>
