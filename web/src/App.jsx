@@ -182,22 +182,34 @@ function App() {
           // Check for saved model preference
           const savedModel = settingsService.getModel();
           let modelToSelect = null;
-          
+
           if (savedModel && availableModels.find(m => m.model_id === savedModel)) {
+            // User has a saved preference - use it
             modelToSelect = savedModel;
             console.log('[App] Restoring saved model:', savedModel);
           } else {
-            // Find a small model to use as default
-            const defaultModel = availableModels.find(m => 
-              m.model_id.includes('SmolLM2-135M') || 
-              m.model_id.includes('Qwen2.5-0.5B')
-            ) || availableModels[0];
-            modelToSelect = defaultModel.model_id;
-            console.log('[App] Selected default model:', modelToSelect);
+            // New user or saved model not available - try Hermes first, then fall back
+            const hermesModel = availableModels.find(m =>
+              m.model_id.includes('Hermes-3-Llama-3.1-8B')
+            );
+
+            if (hermesModel) {
+              modelToSelect = hermesModel.model_id;
+              console.log('[App] Selected Hermes as default model for new user');
+            } else {
+              // Fallback to smallest model if Hermes not available
+              const fallbackModel = availableModels.find(m =>
+                m.model_id.includes('SmolLM2-135M')
+              ) || availableModels[0];
+              modelToSelect = fallbackModel.model_id;
+              console.log('[App] Hermes not available, falling back to:', modelToSelect);
+            }
           }
-          
+
           setSelectedModel(modelToSelect);
-          
+          // Save the model choice immediately
+          settingsService.setModel(modelToSelect);
+
           // Auto-initialize the model
           console.log('[App] Auto-initializing model:', modelToSelect);
           setInitStatus('Loading model...');
@@ -565,11 +577,11 @@ function App() {
 
   const handleModelChange = async (model) => {
     setSelectedModel(model);
-    // Save to localStorage for next session
-    localStorage.setItem('lastSelectedModel', model);
+    // Save model preference using settings service
+    settingsService.setModel(model);
     console.log('[App] Saved model preference:', model);
     setSettingsOpen(false);
-    
+
     // If no engine is loaded yet, initialize with the selected model
     if (!llmService.engine) {
       await initializeLLM(model);

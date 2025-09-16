@@ -7,7 +7,7 @@ class SettingsService {
   constructor() {
     this.STORAGE_KEY = 'cora-settings';
     this.DEFAULT_SETTINGS = {
-      model: null,
+      model: 'Hermes-3-Llama-3.1-8B-q4f16_1-MLC', // Default to Hermes for new users
       theme: 'light',
       persona: null,
       customPersonas: [],
