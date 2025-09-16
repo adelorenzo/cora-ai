@@ -218,9 +218,9 @@ class StorageFallback {
   }
 }
 
-import { 
-  COLLECTIONS, 
-  VALIDATION_RULES, 
+import {
+  COLLECTIONS,
+  VALIDATION_RULES,
   INDEXES,
   DOCUMENT_SCHEMA,
   EMBEDDING_SCHEMA,
@@ -228,6 +228,7 @@ import {
   AGENT_SCHEMA,
   CONVERSATION_SCHEMA
 } from './schema.js';
+import vectorIndex from './vector-index.js';
 
 /**
  * Database service class for managing all data operations
@@ -238,6 +239,7 @@ class DatabaseService {
     this.initialized = false;
     this.storageQuota = null;
     this.usingFallback = false;
+    this.vectorIndex = null;
   }
 
   /**
@@ -345,6 +347,9 @@ class DatabaseService {
 
     // Initialize default settings if not exists
     await this.initializeSettings();
+
+    // Initialize vector index for fast similarity search
+    await this.initializeVectorIndex();
   }
 
   /**
@@ -359,6 +364,42 @@ class DatabaseService {
       if (error.status === 404 || error.message === 'missing') {
         await settingsDb.put({ ...SETTINGS_SCHEMA });
       }
+    }
+  }
+
+  /**
+   * Initialize or rebuild vector index from existing embeddings
+   * @private
+   */
+  async initializeVectorIndex() {
+    const db = this.getDb(COLLECTIONS.EMBEDDINGS);
+
+    try {
+      console.log('[DB Service] Loading embeddings into vector index...');
+      const result = await db.allDocs({ include_docs: true });
+      const embeddings = result.rows.map(row => row.doc);
+
+      // Clear existing index
+      vectorIndex.clear();
+
+      // Add all embeddings to index
+      for (const emb of embeddings) {
+        if (emb.vector && emb._id) {
+          vectorIndex.add(emb._id, emb.vector, {
+            documentId: emb.documentId,
+            chunkIndex: emb.chunkIndex,
+            text: emb.text
+          });
+        }
+      }
+
+      // Build index for fast search
+      if (embeddings.length > 0) {
+        vectorIndex.buildIndex();
+        console.log(`[DB Service] Vector index built with ${embeddings.length} embeddings`);
+      }
+    } catch (error) {
+      console.error('[DB Service] Failed to initialize vector index:', error);
     }
   }
 
@@ -472,6 +513,9 @@ class DatabaseService {
       // Delete associated embeddings
       const embeddings = await this.getEmbeddingsByDocument(id);
       for (const embedding of embeddings) {
+        // Remove from vector index
+        vectorIndex.remove(embedding._id);
+        // Remove from database
         await embDb.remove(embedding);
       }
     } catch (error) {
@@ -514,7 +558,7 @@ class DatabaseService {
    */
   async createEmbedding(embedding) {
     this.validateEmbedding(embedding);
-    
+
     const db = this.getDb(COLLECTIONS.EMBEDDINGS);
     const embeddingDoc = {
       ...EMBEDDING_SCHEMA,
@@ -526,6 +570,14 @@ class DatabaseService {
 
     try {
       const result = await db.put(embeddingDoc);
+
+      // Add to vector index for fast similarity search
+      vectorIndex.add(embeddingDoc._id, embedding.vector, {
+        documentId: embedding.documentId,
+        chunkIndex: embedding.chunkIndex,
+        text: embedding.text
+      });
+
       return { ...embeddingDoc, _rev: result.rev };
     } catch (error) {
       throw new Error(`Failed to create embedding: ${error.message}`);
@@ -562,23 +614,33 @@ class DatabaseService {
     const db = this.getDb(COLLECTIONS.EMBEDDINGS);
     const limit = options.limit || 10;
     const threshold = options.threshold || 0.7;
-    
+
     try {
-      // Get all embeddings (in production, use proper vector search)
-      const result = await db.allDocs({ include_docs: true });
-      const embeddings = result.rows.map(row => row.doc);
-      
-      // Calculate similarity scores
-      const scored = embeddings
-        .map(emb => ({
-          ...emb,
-          score: this.cosineSimilarity(queryVector, emb.vector)
-        }))
-        .filter(emb => emb.score >= threshold)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit);
-      
-      return scored;
+      // Use optimized vector index for fast search
+      const results = vectorIndex.search(queryVector, limit, threshold);
+
+      // Enhance results with full document data
+      const enhancedResults = [];
+      for (const result of results) {
+        try {
+          const doc = await db.get(result.id);
+          enhancedResults.push({
+            ...doc,
+            score: result.score
+          });
+        } catch (err) {
+          // If doc not found in DB, just use index metadata
+          enhancedResults.push({
+            _id: result.id,
+            documentId: result.metadata.documentId,
+            chunkIndex: result.metadata.chunkIndex,
+            text: result.metadata.text,
+            score: result.score
+          });
+        }
+      }
+
+      return enhancedResults;
     } catch (error) {
       throw new Error(`Vector search failed: ${error.message}`);
     }

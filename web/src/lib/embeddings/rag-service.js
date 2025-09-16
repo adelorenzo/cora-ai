@@ -3,8 +3,8 @@
  * Provides document indexing and semantic search capabilities
  */
 
-// Use simple embedding service that works in browser without external ML libraries
-import embeddingService from './simple-embedding-service.js';
+// Use Transformers.js embedding service for semantic embeddings
+import embeddingService from './transformers-embedding-service.js';
 import dbService from '../database/db-service.js';
 
 /**
@@ -134,7 +134,7 @@ class RAGService {
               endPos: chunk.endPos,
               tokenCount: chunk.tokenCount || 0
             },
-            model: 'simple-hash-embeddings'
+            model: 'all-MiniLM-L6-v2'
           })
         );
         
