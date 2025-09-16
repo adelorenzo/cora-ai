@@ -197,9 +197,9 @@ function App() {
               modelToSelect = hermesModel.model_id;
               console.log('[App] Selected Hermes as default model for new user');
             } else {
-              // Fallback to smallest model if Hermes not available
+              // Fallback to DeepSeek if Hermes not available
               const fallbackModel = availableModels.find(m =>
-                m.model_id.includes('SmolLM2-135M')
+                m.model_id.includes('DeepSeek-R1-Distill-Qwen-1.5B')
               ) || availableModels[0];
               modelToSelect = fallbackModel.model_id;
               console.log('[App] Hermes not available, falling back to:', modelToSelect);
