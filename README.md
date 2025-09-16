@@ -12,7 +12,9 @@ Cora is an AI assistant that runs **entirely in the browser**. Primary path uses
 - **WASM fallback** using **wllama** (single-thread by default to avoid COOP/COEP headers)
 - **Multiple themes** (8 themes including Light, Dark, Ocean, Forest, etc.)
 - **AI Personas** with customizable system prompts and settings
-- **Curated model selection** optimized for browser performance
+- **Curated model selection** (5 models optimized for browser performance)
+- **Chat Management System** with multiple conversations, search, and export/import
+- **Settings Persistence** across sessions using localStorage
 
 ## Quick Start
 

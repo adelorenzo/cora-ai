@@ -90,7 +90,11 @@ function App() {
       const conversationId = activeConversation.id;
       const conversation = conversationManager.getConversation(conversationId);
       const lastMessage = conversation.messages[conversation.messages.length - 1];
-      Object.assign(lastMessage, updates);
+
+      // Handle both callback function and direct object updates
+      const newUpdates = typeof updates === 'function' ? updates(lastMessage) : updates;
+      Object.assign(lastMessage, newUpdates);
+
       conversationManager.save();
       setActiveConversation(conversationManager.getActiveConversation());
     }
@@ -428,29 +432,26 @@ function App() {
               });
               
               // Clear the status and start new response
-              setMessages(prev => {
-                const newMessages = [...prev];
-                newMessages[newMessages.length - 1].content = contentBuffer + '\n\n';
-                return newMessages;
-              });
+              updateLastMessage(msg => ({
+                ...msg,
+                content: contentBuffer + '\n\n'
+              }));
               
               for await (const continueDelta of continueStream) {
                 if (continueDelta.content) {
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    newMessages[newMessages.length - 1].content += continueDelta.content;
-                    return newMessages;
-                  });
+                  updateLastMessage(msg => ({
+                    ...msg,
+                    content: msg.content + continueDelta.content
+                  }));
                 }
               }
             }
           } catch (error) {
             console.error('[App] Function call failed:', error);
-            setMessages(prev => {
-              const newMessages = [...prev];
-              newMessages[newMessages.length - 1].content = contentBuffer + '\n\n⚠️ Web search failed. Continuing with available information...';
-              return newMessages;
-            });
+            updateLastMessage(msg => ({
+              ...msg,
+              content: contentBuffer + '\n\n⚠️ Web search failed. Continuing with available information...'
+            }));
           }
         }
       }
@@ -465,11 +466,10 @@ function App() {
           
           if (searchResult) {
             // Update the message to show search was performed
-            setMessages(prev => {
-              const newMessages = [...prev];
-              newMessages[newMessages.length - 1].content = contentBuffer + '\n\n📌 Web Search Results:\n' + searchResult;
-              return newMessages;
-            });
+            updateLastMessage(msg => ({
+              ...msg,
+              content: contentBuffer + '\n\n📌 Web Search Results:\n' + searchResult
+            }));
           }
         } catch (error) {
           console.error('[App] Text-based function call failed:', error);
@@ -485,11 +485,10 @@ function App() {
           let searchResult = null;
           try {
             // Show searching animation
-            setMessages(prev => {
-              const newMessages = [...prev];
-              newMessages[newMessages.length - 1].content = '🔍 Searching the web...';
-              return newMessages;
-            });
+            updateLastMessage(msg => ({
+              ...msg,
+              content: '🔍 Searching the web...'
+            }));
             
             // Execute the search
             searchResult = await functionCallingService.executeTextFunctionCall(manualCall);
@@ -510,11 +509,10 @@ function App() {
                 ];
                 
                 // Update to "Generating response..." indicator
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  newMessages[newMessages.length - 1].content = '✨ Analyzing search results...';
-                  return newMessages;
-                });
+                updateLastMessage(msg => ({
+                  ...msg,
+                  content: '✨ Analyzing search results...'
+                }));
                 
                 // Continue the conversation with search results
                 const continueStream = await llmService.chat(continueMessages, {
@@ -529,41 +527,37 @@ function App() {
                 for await (const delta of continueStream) {
                   if (delta && delta.content) {
                     continuationContent += delta.content;
-                    setMessages(prev => {
-                      const newMessages = [...prev];
-                      newMessages[newMessages.length - 1].content = continuationContent;
-                      return newMessages;
-                    });
+                    updateLastMessage(msg => ({
+                      ...msg,
+                      content: continuationContent
+                    }));
                   }
                 }
               } catch (contError) {
                 console.warn('[App] Could not generate follow-up response:', contError);
                 // Show a simplified message if follow-up fails
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  newMessages[newMessages.length - 1].content = `I found information about your query from web search. Based on the latest available information, I can provide some context, though I'm having difficulty generating a detailed response at the moment.`;
-                  return newMessages;
-                });
+                updateLastMessage(msg => ({
+                  ...msg,
+                  content: `I found information about your query from web search. Based on the latest available information, I can provide some context, though I'm having difficulty generating a detailed response at the moment.`
+                }));
               }
             }
           } catch (error) {
             console.error('[App] Manual function call error:', error);
             // Show clean error message
-            setMessages(prev => {
-              const newMessages = [...prev];
-              newMessages[newMessages.length - 1].content = '⚠️ Search failed. Please try again.';
-              return newMessages;
-            });
+            updateLastMessage(msg => ({
+              ...msg,
+              content: '⚠️ Search failed. Please try again.'
+            }));
           }
         }
       }
     } catch (error) {
       console.error('Generation error:', error);
-      setMessages(prev => {
-        const newMessages = [...prev];
-        newMessages[newMessages.length - 1].content = 'Error generating response. Please try again.';
-        return newMessages;
-      });
+      updateLastMessage(msg => ({
+        ...msg,
+        content: 'Error generating response. Please try again.'
+      }));
     } finally {
       setIsLoading(false);
       setIsStreaming(false);
