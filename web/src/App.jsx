@@ -19,6 +19,7 @@ import llmService from './lib/llm-service';
 import performanceOptimizer from './lib/performance-optimizer';
 import smartFetchService from './lib/smart-fetch-service';
 import functionCallingService from './lib/function-calling-service';
+import settingsService from './lib/settings-service';
 import { cn } from './lib/utils';
 
 function App() {
@@ -47,9 +48,9 @@ function App() {
   const [initStatus, setInitStatus] = useState('Initializing...');
   const [runtime, setRuntime] = useState('detecting');
   const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState(null);
+  const [selectedModel, setSelectedModel] = useState(() => settingsService.getModel());
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [temperature, setTemperature] = useState(0.7);
+  const [temperature, setTemperature] = useState(() => settingsService.getTemperature());
   const [isStreaming, setIsStreaming] = useState(false);
   const [knowledgeBaseOpen, setKnowledgeBaseOpen] = useState(false);
   const [showDocumentUpload, setShowDocumentUpload] = useState(false);
@@ -123,13 +124,13 @@ function App() {
         setModels(availableModels);
         
         if (availableModels.length > 0) {
-          // Check for last used model in localStorage
-          const lastUsedModel = localStorage.getItem('lastSelectedModel');
+          // Check for saved model preference
+          const savedModel = settingsService.getModel();
           let modelToSelect = null;
           
-          if (lastUsedModel && availableModels.find(m => m.model_id === lastUsedModel)) {
-            modelToSelect = lastUsedModel;
-            console.log('[App] Restoring last used model:', lastUsedModel);
+          if (savedModel && availableModels.find(m => m.model_id === savedModel)) {
+            modelToSelect = savedModel;
+            console.log('[App] Restoring saved model:', savedModel);
           } else {
             // Find a small model to use as default
             const defaultModel = availableModels.find(m => 
@@ -181,7 +182,7 @@ function App() {
       if (result.selectedModel) {
         setSelectedModel(result.selectedModel);
         // Save the successfully initialized model
-        localStorage.setItem('lastSelectedModel', result.selectedModel);
+        settingsService.setModel(result.selectedModel);
       }
       setInitStatus('Ready');
       setIsInitializing(false);
@@ -837,7 +838,11 @@ function App() {
                   max="2"
                   step="0.1"
                   value={temperature}
-                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    const newTemp = parseFloat(e.target.value);
+                    setTemperature(newTemp);
+                    settingsService.setTemperature(newTemp);
+                  }}
                   className="w-full mt-1 accent-primary"
                 />
               </div>

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import settingsService from '../lib/settings-service';
 
 const themes = {
   light: {
@@ -55,8 +56,7 @@ export const useTheme = () => {
 
 export const ThemeProvider = ({ children }) => {
   const [currentTheme, setCurrentTheme] = useState(() => {
-    const saved = localStorage.getItem('app-theme');
-    return saved || 'dark';
+    return settingsService.getTheme();
   });
 
   useEffect(() => {
@@ -70,8 +70,8 @@ export const ThemeProvider = ({ children }) => {
     // Add current theme class
     root.classList.add(themes[currentTheme].class);
     
-    // Save to localStorage
-    localStorage.setItem('app-theme', currentTheme);
+    // Save to settings service
+    settingsService.setTheme(currentTheme);
   }, [currentTheme]);
 
   const value = {

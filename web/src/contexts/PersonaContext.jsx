@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import settingsService from '../lib/settings-service';
 
 const defaultPersonas = {
   assistant: {
@@ -50,42 +51,44 @@ export const usePersona = () => {
 
 export const PersonaProvider = ({ children }) => {
   const [personas, setPersonas] = useState(() => {
-    const saved = localStorage.getItem('custom-personas');
-    if (saved) {
-      try {
-        const customPersonas = JSON.parse(saved);
-        return { ...defaultPersonas, ...customPersonas };
-      } catch {
-        return defaultPersonas;
-      }
+    const customPersonas = settingsService.getCustomPersonas();
+    const personasMap = {};
+    customPersonas.forEach(p => {
+      personasMap[p.id] = p;
+    });
+    return { ...defaultPersonas, ...personasMap };
+  });
+
+  const [activePersona, setActivePersonaState] = useState(() => {
+    const saved = settingsService.getPersona();
+    return saved?.id || 'assistant';
+  });
+
+  const setActivePersona = (personaId) => {
+    setActivePersonaState(personaId);
+    const personaData = personas[personaId];
+    if (personaData) {
+      settingsService.setPersona(personaData);
     }
-    return defaultPersonas;
-  });
-
-  const [activePersona, setActivePersona] = useState(() => {
-    const saved = localStorage.getItem('active-persona');
-    return saved || 'assistant';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('active-persona', activePersona);
-  }, [activePersona]);
+  };
 
   const saveCustomPersona = (persona) => {
+    const personaWithId = {
+      ...persona,
+      id: persona.id || `custom-${Date.now()}`,
+      createdAt: Date.now()
+    };
+    
     const newPersonas = {
       ...personas,
-      [persona.id]: persona
+      [personaWithId.id]: personaWithId
     };
     setPersonas(newPersonas);
     
-    // Save only custom personas to localStorage
-    const customPersonas = {};
-    Object.entries(newPersonas).forEach(([key, value]) => {
-      if (!defaultPersonas[key]) {
-        customPersonas[key] = value;
-      }
-    });
-    localStorage.setItem('custom-personas', JSON.stringify(customPersonas));
+    // Save to settings service
+    if (!defaultPersonas[personaWithId.id]) {
+      settingsService.addCustomPersona(personaWithId);
+    }
   };
 
   const deleteCustomPersona = (personaId) => {
@@ -97,14 +100,8 @@ export const PersonaProvider = ({ children }) => {
     delete newPersonas[personaId];
     setPersonas(newPersonas);
     
-    // Update localStorage
-    const customPersonas = {};
-    Object.entries(newPersonas).forEach(([key, value]) => {
-      if (!defaultPersonas[key]) {
-        customPersonas[key] = value;
-      }
-    });
-    localStorage.setItem('custom-personas', JSON.stringify(customPersonas));
+    // Remove from settings service
+    settingsService.removeCustomPersona(personaId);
     
     // Switch to assistant if deleting active persona
     if (activePersona === personaId) {
