@@ -3,7 +3,8 @@
  * Provides document indexing and semantic search capabilities
  */
 
-import embeddingService from './embedding-service.js';
+// Use simple embedding service that works in browser without external ML libraries
+import embeddingService from './simple-embedding-service.js';
 import dbService from '../database/db-service.js';
 
 /**
@@ -22,19 +23,31 @@ class RAGService {
    * @returns {Promise<void>}
    */
   async initialize(progressCallback = null) {
-    if (this.initialized) return;
+    if (this.initialized) {
+      console.log('[RAG Service] Already initialized, skipping');
+      return;
+    }
+
+    console.log('[RAG Service] Starting initialization...');
+    const startTime = Date.now();
 
     try {
       // Initialize database first
+      console.log('[RAG Service] Initializing database...');
       await dbService.initialize();
+      console.log('[RAG Service] Database initialized');
       
       // Initialize embedding model
+      console.log('[RAG Service] Initializing embedding service...');
       await embeddingService.initialize(progressCallback);
+      console.log('[RAG Service] Embedding service initialized');
       
       this.initialized = true;
-      console.log('RAG service initialized successfully');
+      const elapsed = Date.now() - startTime;
+      console.log(`[RAG Service] Initialization completed in ${elapsed}ms`);
     } catch (error) {
-      console.error('RAG service initialization failed:', error);
+      console.error('[RAG Service] Initialization failed:', error);
+      console.error('[RAG Service] Error stack:', error.stack);
       throw error;
     }
   }
@@ -50,6 +63,18 @@ class RAGService {
       throw new Error('RAG service not initialized');
     }
 
+    // Prevent indexing if document is too large
+    const MAX_DOCUMENT_SIZE = 500000; // 500KB limit
+    if (document.content && document.content.length > MAX_DOCUMENT_SIZE) {
+      console.error(`[RAG Index] Document too large: ${document.content.length} bytes (max: ${MAX_DOCUMENT_SIZE})`);
+      await dbService.updateDocument(document._id, {
+        status: 'error',
+        indexed: false,
+        error: 'Document too large for indexing'
+      });
+      throw new Error('Document too large for indexing');
+    }
+
     try {
       // Update document status
       await dbService.updateDocument(document._id, {
@@ -57,35 +82,68 @@ class RAGService {
         indexed: false
       });
 
-      // Chunk the document content
+      // Chunk the document content with smaller chunks to reduce memory usage
       const chunks = embeddingService.chunkText(document.content, {
-        chunkSize: options.chunkSize || 1000,
-        overlap: options.overlap || 100
+        chunkSize: options.chunkSize || 500,  // Reduced from 1000
+        overlap: options.overlap || 50  // Reduced from 100
       });
 
-      console.log(`Processing ${chunks.length} chunks for document: ${document.title}`);
+      // Limit the number of chunks to prevent memory issues
+      const MAX_CHUNKS = 100;
+      if (chunks.length > MAX_CHUNKS) {
+        console.warn(`[RAG Index] Document has ${chunks.length} chunks, limiting to ${MAX_CHUNKS}`);
+        chunks.length = MAX_CHUNKS;
+      }
 
-      // Generate embeddings for chunks
+      console.log(`[RAG Index] Processing ${chunks.length} chunks for document: ${document.title || document.name}`);
+
+      // Generate embeddings for chunks in batches to reduce memory usage
       const texts = chunks.map(chunk => chunk.text);
-      const embeddings = await embeddingService.generateEmbeddings(texts);
+      console.log(`[RAG Index] Generating embeddings for ${texts.length} chunks...`);
+      
+      // Process embeddings in smaller batches
+      const embeddings = [];
+      const embeddingBatchSize = 20; // Process 20 chunks at a time
+      
+      for (let i = 0; i < texts.length; i += embeddingBatchSize) {
+        const batch = texts.slice(i, i + embeddingBatchSize);
+        const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
+        embeddings.push(...batchEmbeddings);
+        console.log(`[RAG Index] Generated embeddings for ${Math.min(i + embeddingBatchSize, texts.length)}/${texts.length} chunks`);
+      }
+      
+      console.log(`[RAG Index] All embeddings generated successfully`);
 
-      // Store embeddings in database
+      // Store embeddings in database - batch operations for speed
+      console.log(`[RAG Index] Storing embeddings in database...`);
+      const embeddingPromises = [];
+      
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         const embedding = embeddings[i];
 
-        await dbService.createEmbedding({
-          documentId: document._id,
-          chunkIndex: chunk.index,
-          text: chunk.text,
-          vector: embedding,
-          metadata: {
-            startPos: chunk.startPos,
-            endPos: chunk.endPos,
-            tokenCount: chunk.tokenCount
-          },
-          model: 'all-MiniLM-L6-v2'
-        });
+        // Create promises but don't await immediately
+        embeddingPromises.push(
+          dbService.createEmbedding({
+            documentId: document._id,
+            chunkIndex: chunk.index,
+            text: chunk.text,
+            vector: embedding,
+            metadata: {
+              startPos: chunk.startPos,
+              endPos: chunk.endPos,
+              tokenCount: chunk.tokenCount || 0
+            },
+            model: 'simple-hash-embeddings'
+          })
+        );
+        
+        // Process in smaller batches to reduce memory usage
+        if (embeddingPromises.length >= 5 || i === chunks.length - 1) {
+          await Promise.all(embeddingPromises);
+          embeddingPromises.length = 0;
+          console.log(`[RAG Index] Stored ${Math.min((i + 1), chunks.length)} / ${chunks.length} embeddings`);
+        }
       }
 
       // Update document as indexed
@@ -195,11 +253,34 @@ class RAGService {
    * @param {Object} options - Indexing options
    */
   queueForIndexing(document, options = {}) {
+    // Check if document is already in queue
+    const isAlreadyQueued = this.indexingQueue.some(item => 
+      item.document._id === document._id
+    );
+    
+    if (isAlreadyQueued) {
+      console.log(`[RAG Queue] Document already in queue: ${document.name || document.title}`);
+      return;
+    }
+    
+    // Limit queue size to prevent memory issues
+    const MAX_QUEUE_SIZE = 10;
+    if (this.indexingQueue.length >= MAX_QUEUE_SIZE) {
+      console.error(`[RAG Queue] Queue is full (${MAX_QUEUE_SIZE} items). Please wait for processing to complete.`);
+      return;
+    }
+    
     this.indexingQueue.push({ document, options });
+    console.log(`[RAG Queue] Document queued: ${document.name || document.title}. Queue size: ${this.indexingQueue.length}`);
     
     // Start processing queue if not already processing
     if (!this.isProcessing) {
-      this._processIndexingQueue();
+      // Add a small delay to prevent immediate processing that might lock the UI
+      setTimeout(() => {
+        if (!this.isProcessing && this.indexingQueue.length > 0) {
+          this._processIndexingQueue();
+        }
+      }, 100);
     }
   }
 
@@ -219,14 +300,36 @@ class RAGService {
         const { document, options } = this.indexingQueue.shift();
         
         try {
-          await this.indexDocument(document, options);
+          console.log(`[RAG Queue] Starting to index: ${document.name || document.title}`);
+          const startTime = Date.now();
+          
+          // Add timeout to prevent hanging - reduced to 15 seconds
+          const indexPromise = this.indexDocument(document, options);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Indexing timeout after 15 seconds')), 15000)
+          );
+          
+          await Promise.race([indexPromise, timeoutPromise]);
+          
+          const elapsed = Date.now() - startTime;
+          console.log(`[RAG Queue] Completed indexing ${document.name || document.title} in ${elapsed}ms`);
         } catch (error) {
-          console.error(`Failed to index queued document ${document.title}:`, error);
-          // Continue processing other documents
+          console.error(`[RAG Queue] Failed to index document ${document.name || document.title}:`, error);
+          // Update document status to error
+          try {
+            await dbService.updateDocument(document._id, {
+              status: 'error',
+              indexed: false,
+              error: error.message
+            });
+          } catch (updateError) {
+            console.error('[RAG Queue] Failed to update document status:', updateError);
+          }
         }
       }
     } finally {
       this.isProcessing = false;
+      console.log('[RAG Queue] Queue processing complete');
     }
   }
 
@@ -259,6 +362,11 @@ class RAGService {
    */
   async getStats() {
     try {
+      // Ensure database is initialized before getting stats
+      if (!dbService.initialized) {
+        await dbService.initialize();
+      }
+      
       const stats = await dbService.getStorageStats();
       
       return {

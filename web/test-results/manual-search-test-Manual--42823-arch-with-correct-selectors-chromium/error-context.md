@@ -1,0 +1,60 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - heading "Cora" [level=1] [ref=e10]
+      - generic [ref=e11]: 100% Local • No Server • No Keys
+    - generic [ref=e12]:
+      - button "🤖 Assistant" [ref=e14] [cursor=pointer]:
+        - generic [ref=e15] [cursor=pointer]: 🤖
+        - generic [ref=e16] [cursor=pointer]: Assistant
+        - img [ref=e17] [cursor=pointer]
+      - generic [ref=e21]:
+        - button "☀️" [ref=e22] [cursor=pointer]:
+          - generic [ref=e23] [cursor=pointer]: ☀️
+        - button "Choose theme" [ref=e24] [cursor=pointer]:
+          - img [ref=e25] [cursor=pointer]
+      - button "Knowledge Base" [ref=e31] [cursor=pointer]:
+        - img [ref=e32] [cursor=pointer]
+      - button "Document Upload" [ref=e34] [cursor=pointer]:
+        - img [ref=e35] [cursor=pointer]
+      - button "Web Search" [ref=e38] [cursor=pointer]:
+        - img [ref=e39] [cursor=pointer]
+      - button [active] [ref=e42] [cursor=pointer]:
+        - img [ref=e43] [cursor=pointer]
+      - button [ref=e46] [cursor=pointer]:
+        - img [ref=e47] [cursor=pointer]
+  - generic [ref=e50]:
+    - button "Select Model WASM Mode" [ref=e52] [cursor=pointer]:
+      - img [ref=e53] [cursor=pointer]
+      - generic [ref=e61] [cursor=pointer]:
+        - generic [ref=e62] [cursor=pointer]: Select Model
+        - generic [ref=e63] [cursor=pointer]: WASM Mode
+    - generic [ref=e64]:
+      - img [ref=e65]
+      - text: WASM
+    - generic [ref=e68]: Failed to initialize - Try another model
+  - generic [ref=e70]:
+    - generic [ref=e72]:
+      - img [ref=e73]
+      - paragraph [ref=e76]: Start a conversation
+      - paragraph [ref=e77]: Your AI assistant runs entirely in this browser
+    - generic [ref=e79]:
+      - textbox "Ask anything..." [ref=e80]
+      - button [disabled]:
+        - img
+  - generic [ref=e84]:
+    - heading "Settings" [level=2] [ref=e86]
+    - generic [ref=e87]:
+      - generic [ref=e88]:
+        - generic [ref=e89]: "Temperature: 0.7"
+        - slider [ref=e90]: "0.7"
+      - generic [ref=e91]:
+        - paragraph [ref=e92]: "Runtime: WASM (Fallback)"
+        - paragraph [ref=e93]: "Model: Loading..."
+    - button "Close" [ref=e94] [cursor=pointer]:
+      - img [ref=e95] [cursor=pointer]
+      - generic [ref=e98] [cursor=pointer]: Close
+```

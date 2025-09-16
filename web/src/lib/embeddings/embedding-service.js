@@ -14,12 +14,31 @@ let env = null;
 // Initialize transformers module only when needed
 const initTransformers = async () => {
   if (!transformersModule) {
-    // Configure safe environment before loading
-    await configureTransformers();
-    
-    transformersModule = await import('@xenova/transformers');
-    pipeline = transformersModule.pipeline;
-    env = transformersModule.env;
+    try {
+      // Configure safe environment before loading
+      await configureTransformers();
+      
+      // Dynamic import with error handling
+      transformersModule = await import('@xenova/transformers').catch(err => {
+        console.error('Failed to import transformers module:', err);
+        throw new Error('Transformers.js not available in browser environment');
+      });
+      
+      if (!transformersModule) {
+        throw new Error('Transformers module failed to load');
+      }
+      
+      pipeline = transformersModule.pipeline;
+      env = transformersModule.env;
+      
+      console.log('Transformers module loaded successfully');
+    } catch (error) {
+      console.error('Failed to initialize transformers:', error);
+      transformersModule = null;
+      pipeline = null;
+      env = null;
+      throw error;
+    }
   }
   return transformersModule;
 };

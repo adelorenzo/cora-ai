@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Function Calling Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .container {
+            display: grid;
+            gap: 20px;
+        }
+        .section {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #3a3a3a;
+        }
+        h2 {
+            margin-top: 0;
+            color: #00d4ff;
+        }
+        button {
+            background: #00d4ff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #00a8cc;
+        }
+        button:disabled {
+            background: #555;
+            color: #999;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #333;
+        }
+        .log-entry.info { color: #00d4ff; }
+        .log-entry.success { color: #4ade80; }
+        .log-entry.error { color: #f87171; }
+        .log-entry.warning { color: #fbbf24; }
+        .test-query {
+            padding: 10px;
+            background: #333;
+            border-radius: 4px;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+        .test-query:hover {
+            background: #444;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .status.ready { background: #065f46; }
+        .status.loading { background: #854d0e; }
+        .status.error { background: #991b1b; }
+    </style>
+</head>
+<body>
+    <h1>Function Calling Test Suite</h1>
+    
+    <div class="container">
+        <div class="section">
+            <h2>Model Status</h2>
+            <div id="status" class="status loading">Checking WebGPU support...</div>
+            <div>Current Model: <span id="currentModel">None</span></div>
+            <div>Function Calling Support: <span id="functionSupport">Checking...</span></div>
+            <button id="loadHermes" disabled>Load Hermes Model (with Function Calling)</button>
+            <button id="loadPhi" disabled>Load Phi Model (no Function Calling)</button>
+        </div>
+
+        <div class="section">
+            <h2>Test Queries</h2>
+            <p>Click on a query to test it:</p>
+            <div class="test-query" data-query="Research on the web how to install a self-hosted Zulip server">
+                🔍 Research on the web how to install a self-hosted Zulip server
+            </div>
+            <div class="test-query" data-query="What are the latest developments in quantum computing?">
+                🔍 What are the latest developments in quantum computing?
+            </div>
+            <div class="test-query" data-query="Search for the current weather in San Francisco">
+                🔍 Search for the current weather in San Francisco
+            </div>
+            <div class="test-query" data-query="Hello, how are you?">
+                💬 Hello, how are you? (No search needed)
+            </div>
+            <div class="test-query" data-query="Find information about WebGPU browser support">
+                🔍 Find information about WebGPU browser support
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Test Log</h2>
+            <button id="clearLog">Clear Log</button>
+            <div id="log" class="log"></div>
+        </div>
+
+        <div class="section">
+            <h2>Response</h2>
+            <div id="response" class="log"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        const WEBLLM_URL = "https://unpkg.com/@mlc-ai/web-llm@0.2.79?module";
+        
+        let llmService = null;
+        let functionCallingService = null;
+        
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(`[${type}]`, message);
+        }
+        
+        function setStatus(message, type = 'loading') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+        
+        async function initializeFunctionCalling() {
+            log('Loading function calling service...');
+            const module = await import('./src/lib/function-calling-service.js');
+            functionCallingService = module.default;
+            log('Function calling service loaded', 'success');
+        }
+        
+        async function initializeLLM(modelId) {
+            try {
+                setStatus('Loading WebLLM...', 'loading');
+                log(`Initializing model: ${modelId}`);
+                
+                const webllm = await import(WEBLLM_URL);
+                
+                const engineConfig = {
+                    initProgressCallback: (report) => {
+                        log(report.text || "Loading model...");
+                    },
+                    appConfig: webllm.prebuiltAppConfig,
+                    logLevel: "INFO",
+                    useWebWorker: false,
+                };
+                
+                llmService = await webllm.CreateMLCEngine(modelId, engineConfig);
+                
+                document.getElementById('currentModel').textContent = modelId;
+                
+                // Check function calling support
+                const supportsFC = functionCallingService.supportsModelFunctionCalling(modelId);
+                document.getElementById('functionSupport').textContent = supportsFC ? '✅ Yes' : '❌ No';
+                
+                setStatus(`Model loaded: ${modelId}`, 'ready');
+                log(`Model loaded successfully: ${modelId}`, 'success');
+                
+                if (supportsFC) {
+                    log('This model supports function calling!', 'success');
+                } else {
+                    log('This model does NOT support function calling', 'warning');
+                }
+                
+                return true;
+            } catch (error) {
+                setStatus(`Error: ${error.message}`, 'error');
+                log(`Failed to load model: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function testQuery(query) {
+            if (!llmService) {
+                log('No model loaded', 'error');
+                return;
+            }
+            
+            log(`Testing query: "${query}"`);
+            document.getElementById('response').textContent = 'Processing...';
+            
+            const modelId = document.getElementById('currentModel').textContent;
+            const supportsFC = functionCallingService.supportsModelFunctionCalling(modelId);
+            const shouldUseWebSearch = functionCallingService.shouldUseWebSearch(query);
+            
+            log(`Model supports function calling: ${supportsFC}`);
+            log(`Query triggers web search: ${shouldUseWebSearch}`);
+            
+            try {
+                const systemPrompt = supportsFC && shouldUseWebSearch ? 
+                    'You are a helpful assistant with web search capabilities. IMPORTANT: You MUST use the web_search function for ANY request about current information, weather, news, or web searches. Do NOT generate responses from your training data for these queries. Instead, call the web_search function with an appropriate query. Format: Use the tool/function calling mechanism, not text output. When asked about weather, search for "weather in [location]". When asked to research, search for the topic.' :
+                    'You are a helpful assistant.';
+                
+                const messages = [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: query }
+                ];
+                
+                const request = {
+                    messages,
+                    temperature: 0.7,
+                    max_tokens: 512,
+                    stream: true,
+                };
+                
+                // Add tools if supported and needed
+                if (supportsFC && shouldUseWebSearch) {
+                    request.tools = functionCallingService.getToolSchemas();
+                    request.tool_choice = "auto";
+                    log('Added web search tools to request', 'info');
+                }
+                
+                let fullResponse = '';
+                let functionCalled = false;
+                let textFunctionCallDetected = null;
+                
+                try {
+                    const asyncChunkGenerator = await llmService.chat.completions.create(request);
+                    
+                    for await (const chunk of asyncChunkGenerator) {
+                        const delta = chunk.choices[0]?.delta;
+                        
+                        if (delta?.tool_calls) {
+                            functionCalled = true;
+                            log('Function call detected!', 'success');
+                            
+                            for (const toolCall of delta.tool_calls) {
+                                log(`Function: ${toolCall.function.name}`, 'info');
+                                log(`Arguments: ${toolCall.function.arguments}`, 'info');
+                                
+                                // Execute the function
+                                const result = await functionCallingService.processFunctionCall(toolCall);
+                                log(`Function result received`, 'success');
+                                
+                                // Show the search results
+                                fullResponse += `\n\n[Web Search Results]:\n${result.content}\n\n`;
+                            }
+                        }
+                        
+                        if (delta?.content) {
+                            fullResponse += delta.content;
+                            document.getElementById('response').textContent = fullResponse;
+                        }
+                    }
+                } catch (streamError) {
+                    // Handle function calling parse errors
+                    if (streamError.message?.includes('error encountered when parsing outputMessage for function calling')) {
+                        log('Model responded with text instead of function call. Full error:', 'warning');
+                        console.error('Full error message:', streamError.message);
+                        
+                        // Try multiple extraction patterns
+                        let extractedText = null;
+                        
+                        // Pattern 1: Original pattern
+                        const match1 = streamError.message.match(/Got outputMessage: (.+?) Got error:/);
+                        if (match1 && match1[1]) {
+                            extractedText = match1[1];
+                        }
+                        
+                        // Pattern 2: Match until end of string if Got error is at the end
+                        if (!extractedText) {
+                            const match2 = streamError.message.match(/Got outputMessage: (.+)$/);
+                            if (match2 && match2[1]) {
+                                // Remove the trailing "Got error:" part if it exists
+                                extractedText = match2[1].replace(/ Got error:.*$/, '');
+                            }
+                        }
+                        
+                        // Pattern 3: Just try to get anything after "Got outputMessage:"
+                        if (!extractedText) {
+                            const match3 = streamError.message.match(/Got outputMessage: (.+)/);
+                            if (match3 && match3[1]) {
+                                extractedText = match3[1].split('Got error:')[0].trim();
+                            }
+                        }
+                        
+                        if (extractedText) {
+                            log(`Extracted text: ${extractedText.substring(0, 100)}...`, 'info');
+                            fullResponse = extractedText;
+                            
+                            // Check if the model is trying to simulate a function call in text
+                            textFunctionCallDetected = functionCallingService.detectTextFunctionCall(extractedText);
+                            
+                            if (textFunctionCallDetected.detected) {
+                                log(`Detected text-based function call: ${textFunctionCallDetected.function}`, 'success');
+                                log(`Query: ${textFunctionCallDetected.query}`, 'info');
+                                
+                                // Execute the text-detected function
+                                try {
+                                    const searchResult = await functionCallingService.executeTextFunctionCall(textFunctionCallDetected);
+                                    if (searchResult) {
+                                        fullResponse += `\n\n📌 Web Search Results:\n${searchResult}`;
+                                        functionCalled = true;
+                                        log('Text-based function call executed successfully!', 'success');
+                                    }
+                                } catch (execError) {
+                                    log(`Failed to execute text-based function: ${execError.message}`, 'error');
+                                }
+                            }
+                            
+                            document.getElementById('response').textContent = fullResponse;
+                        } else {
+                            log('Could not extract text from error. Showing raw error.', 'error');
+                            fullResponse = "Unable to process response. The model may not support function calling properly.";
+                            document.getElementById('response').textContent = fullResponse;
+                            console.error('Could not extract from:', streamError.message);
+                        }
+                    } else {
+                        throw streamError;
+                    }
+                }
+                
+                if (!functionCalled && shouldUseWebSearch && supportsFC) {
+                    log('Warning: Model should have called web search but didn\'t', 'warning');
+                } else if (functionCalled) {
+                    log('Function calling (or text simulation) worked successfully!', 'success');
+                }
+                
+            } catch (error) {
+                log(`Error during query: ${error.message}`, 'error');
+                document.getElementById('response').textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function checkWebGPU() {
+            if (navigator.gpu) {
+                try {
+                    const adapter = await navigator.gpu.requestAdapter();
+                    if (adapter) {
+                        log('WebGPU is supported!', 'success');
+                        setStatus('WebGPU supported - Ready to load model', 'ready');
+                        return true;
+                    }
+                } catch (e) {
+                    log('WebGPU not available: ' + e.message, 'warning');
+                }
+            }
+            log('WebGPU not supported, models may not work', 'error');
+            setStatus('WebGPU not supported', 'error');
+            return false;
+        }
+        
+        // Initialize
+        (async () => {
+            await initializeFunctionCalling();
+            const hasWebGPU = await checkWebGPU();
+            
+            if (hasWebGPU) {
+                document.getElementById('loadHermes').disabled = false;
+                document.getElementById('loadPhi').disabled = false;
+            }
+            
+            // Set up event listeners
+            document.getElementById('loadHermes').addEventListener('click', () => {
+                initializeLLM('Hermes-3-Llama-3.1-8B-q4f16_1-MLC');
+            });
+            
+            document.getElementById('loadPhi').addEventListener('click', () => {
+                initializeLLM('Phi-3.5-mini-instruct-q4f16_1-MLC');
+            });
+            
+            document.getElementById('clearLog').addEventListener('click', () => {
+                document.getElementById('log').innerHTML = '';
+            });
+            
+            // Test query buttons
+            document.querySelectorAll('.test-query').forEach(el => {
+                el.addEventListener('click', () => {
+                    testQuery(el.dataset.query);
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

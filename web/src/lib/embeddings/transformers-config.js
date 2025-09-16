@@ -9,40 +9,51 @@ let isConfigured = false;
  * Configure transformers environment for safe browser execution
  */
 export const configureTransformers = async () => {
-  if (isConfigured) return;
+  if (isConfigured) return true;
 
   try {
-    const { env } = await import('@xenova/transformers');
+    // Dynamic import with error handling for browser environment
+    const transformersModule = await import('@xenova/transformers').catch(err => {
+      console.error('Failed to import @xenova/transformers:', err);
+      throw new Error('Transformers.js library not available. Please ensure @xenova/transformers is installed.');
+    });
     
-    // Disable ONNX runtime to avoid eval usage
-    if (env.backends) {
-      env.backends.onnx = false;
+    if (!transformersModule || !transformersModule.env) {
+      throw new Error('Invalid transformers module structure');
     }
     
-    // Configure environment settings
-    env.allowRemoteModels = false;
-    env.allowLocalModels = true;
+    const { env } = transformersModule;
     
-    // Use WASM backend as primary (safer alternative to ONNX)
-    env.backends = {
-      ...env.backends,
-      wasm: true,
-      webgl: typeof WebGLRenderingContext !== 'undefined',
-      onnx: false // Explicitly disable ONNX runtime
-    };
+    // Configure environment settings for browser
+    env.allowRemoteModels = true; // Allow downloading models from CDN
+    env.allowLocalModels = false; // Don't use local file system in browser
     
-    // Set cache directory for better performance
-    env.cacheDir = './.cache';
+    // Configure backends - disable ONNX to avoid eval usage
+    if (env.backends) {
+      env.backends.onnx = false;
+      env.backends.wasm = true;
+      if (typeof WebGLRenderingContext !== 'undefined') {
+        env.backends.webgl = true;
+      }
+    }
     
-    // Configure for browser environment
+    // Use browser cache for models
     env.useBrowserCache = true;
-    env.useCustomCache = true;
     
-    console.log('Transformers.js configured with safe backends:', env.backends);
+    // Set CDN URL for model downloads
+    env.remoteURL = 'https://huggingface.co/';
+    
+    console.log('Transformers.js configured successfully:', {
+      backends: env.backends,
+      allowRemoteModels: env.allowRemoteModels,
+      useBrowserCache: env.useBrowserCache
+    });
+    
     isConfigured = true;
+    return true;
     
   } catch (error) {
-    console.warn('Failed to configure transformers environment:', error);
+    console.error('Failed to configure transformers environment:', error);
     isConfigured = false;
     throw error;
   }

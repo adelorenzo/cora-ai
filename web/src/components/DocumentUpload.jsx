@@ -28,6 +28,11 @@ const DocumentUpload = ({ onDocumentsChange, className }) => {
 
   const loadDocuments = async () => {
     try {
+      // Initialize database if not already initialized
+      if (!dbService.initialized) {
+        await dbService.initialize();
+      }
+      
       const docs = await dbService.searchDocuments({}, { limit: 100 });
       setDocuments(docs);
       onDocumentsChange?.(docs);
@@ -76,6 +81,11 @@ const DocumentUpload = ({ onDocumentsChange, className }) => {
     setUploading(true);
 
     try {
+      // Initialize database if not already initialized
+      if (!dbService.initialized) {
+        await dbService.initialize();
+      }
+      
       for (const file of validFiles) {
         const fileId = `file_${Date.now()}_${file.name}`;
         setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
@@ -108,8 +118,9 @@ const DocumentUpload = ({ onDocumentsChange, className }) => {
 
         setUploadProgress(prev => ({ ...prev, [fileId]: 60 }));
 
-        // Queue for indexing
-        ragService.queueForIndexing(doc);
+        // Don't auto-queue for indexing - wait for manual indexing from Knowledge Base
+        // This prevents trying to index before RAG is initialized
+        // ragService.queueForIndexing(doc);
         setUploadProgress(prev => ({ ...prev, [fileId]: 100 }));
 
         // Remove progress after delay

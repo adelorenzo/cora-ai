@@ -19,6 +19,18 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+  
+  // Skip service worker for development server assets
+  if (url.hostname === 'localhost' && url.port === '8000') {
+    // Don't intercept development server requests
+    if (url.pathname.includes('@vite') || 
+        url.pathname.includes('@react-refresh') || 
+        url.pathname.includes('?t=') ||
+        url.pathname.includes('/src/')) {
+      return; // Let browser handle these directly
+    }
+  }
+  
   // Heuristic: cache-first for model shards & tokenizer/wasm
   const isModel =
     url.hostname.includes("huggingface.co") ||
@@ -40,14 +52,25 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Default: network-first with fallback to cache
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      // In development, don't cache Vite assets
-      if (url.pathname.includes('@vite') || url.pathname.includes('?t=')) {
-        return new Response('', { status: 404 });
-      }
-      return caches.match(event.request) || new Response('', { status: 404 });
-    })
-  );
+  // For production assets: network-first with cache fallback
+  if (!url.hostname.includes('localhost')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // Cache successful responses
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE).then(cache => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(async () => {
+          // Fallback to cache for offline
+          const cached = await caches.match(event.request);
+          return cached || new Response('Offline', { status: 503 });
+        })
+    );
+  }
 });

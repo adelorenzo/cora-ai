@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Settings, Trash2, Cpu, Zap, Loader2, Sparkles, Database, Upload, BookOpen } from 'lucide-react';
+import { Send, Settings, Trash2, Cpu, Zap, Loader2, Sparkles, Database, Upload, BookOpen, Globe, Search } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog';
 import { Badge } from './components/ui/badge';
@@ -11,17 +11,34 @@ import ModelSelector from './components/ModelSelector';
 // Lazy load RAG components to reduce initial bundle size
 const DocumentUpload = React.lazy(() => import('./components/DocumentUpload'));
 const KnowledgeBase = React.lazy(() => import('./components/KnowledgeBase'));
+const WebSearchPanel = React.lazy(() => import('./components/WebSearchPanel'));
 import { useTheme } from './contexts/ThemeContext';
 import { usePersona } from './contexts/PersonaContext';
 import { useRAG } from './hooks/useRAG';
 import llmService from './lib/llm-service';
 import performanceOptimizer from './lib/performance-optimizer';
+import smartFetchService from './lib/smart-fetch-service';
+import functionCallingService from './lib/function-calling-service';
 import { cn } from './lib/utils';
 
 function App() {
   const { currentTheme } = useTheme();
   const { activePersonaData } = usePersona();
   const { ragState, isRAGEnabled, getRAGStatus, initializeRAG, updateStats } = useRAG();
+  
+  // Debug logging on component mount
+  useEffect(() => {
+    console.log('[App] Component mounted');
+    console.log('[App] Initial theme:', currentTheme);
+    console.log('[App] Active persona:', activePersonaData?.name);
+    console.log('[App] RAG enabled:', isRAGEnabled());
+    console.log('[App] Environment:', {
+      userAgent: navigator.userAgent,
+      webGPU: 'gpu' in navigator,
+      serviceWorker: 'serviceWorker' in navigator,
+      indexedDB: 'indexedDB' in window
+    });
+  }, []);
   
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -36,33 +53,53 @@ function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [knowledgeBaseOpen, setKnowledgeBaseOpen] = useState(false);
   const [showDocumentUpload, setShowDocumentUpload] = useState(false);
+  const [showWebSearch, setShowWebSearch] = useState(false);
+  const [detectedUrls, setDetectedUrls] = useState([]);
   const messagesEndRef = useRef(null);
-  const getSystemMessages = () => {
+  const getSystemMessages = (includeToolInstructions = false, useManualFormat = false) => {
     const basePrompt = activePersonaData?.systemPrompt || "You are a concise, helpful assistant that runs 100% locally in the user's browser.";
     const ragPrompt = isRAGEnabled() ? 
       "\n\nYou have access to a knowledge base with relevant documents. When answering questions, you can reference information from the uploaded documents if it's relevant to the user's query. Always cite your sources when using information from the knowledge base." 
       : "";
     
+    let toolPrompt = "";
+    if (includeToolInstructions) {
+      if (useManualFormat) {
+        // Use manual format for models that don't properly support function calling
+        toolPrompt = "\n\n" + functionCallingService.getManualFunctionCallingPrompt();
+      } else {
+        // Use standard format for models that support proper function calling
+        toolPrompt = "\n\nYou have access to web search tools. IMPORTANT: You MUST use the web_search function for ANY request about current information, weather, news, or web searches. Do NOT generate responses from your training data for these queries. Instead, call the web_search function with an appropriate query. Format: Use the tool/function calling mechanism, not text output.";
+      }
+    }
+    
     return [
-      { role: "system", content: basePrompt + ragPrompt }
+      { role: "system", content: basePrompt + ragPrompt + toolPrompt }
     ];
   };
 
   useEffect(() => {
+    console.log('[App] Starting initialization...');
     loadAvailableModels();
     
     // Track app initialization
     performanceOptimizer.trackInteraction('app-start');
+    console.log('[App] Performance tracking started');
     
     // Intelligent RAG initialization - only if user has used RAG before
-    if (performanceOptimizer.shouldPreloadAdvancedFeatures()) {
+    const shouldPreload = performanceOptimizer.shouldPreloadAdvancedFeatures();
+    console.log('[App] Should preload RAG:', shouldPreload);
+    
+    if (shouldPreload) {
+      console.log('[App] Attempting RAG preload...');
       initializeRAG().catch(error => {
-        console.warn('RAG preload failed:', error);
+        console.warn('[App] RAG preload failed:', error);
       });
     }
     
     // Start performance monitoring
     setTimeout(() => {
+      console.log('[App] Starting critical component preload...');
       performanceOptimizer.preloadCriticalComponents();
     }, 3000);
   }, []); // Remove initializeRAG from dependencies to prevent infinite loop
@@ -73,24 +110,50 @@ function App() {
 
   const loadAvailableModels = async () => {
     try {
+      console.log('[App] Loading available models...');
       setInitStatus('Detecting runtime...');
       const detectedRuntime = await llmService.detectRuntime();
+      console.log('[App] Detected runtime:', detectedRuntime);
       setRuntime(detectedRuntime);
       
       if (detectedRuntime === 'webgpu') {
+        console.log('[App] Fetching WebGPU models...');
         const availableModels = await llmService.getAvailableModels();
+        console.log('[App] Available models:', availableModels.length);
         setModels(availableModels);
+        
         if (availableModels.length > 0) {
-          // Find a small model to use as default
-          const defaultModel = availableModels.find(m => 
-            m.model_id.includes('SmolLM2-135M') || 
-            m.model_id.includes('Qwen2.5-0.5B')
-          ) || availableModels[0];
-          setSelectedModel(defaultModel.model_id);
+          // Check for last used model in localStorage
+          const lastUsedModel = localStorage.getItem('lastSelectedModel');
+          let modelToSelect = null;
+          
+          if (lastUsedModel && availableModels.find(m => m.model_id === lastUsedModel)) {
+            modelToSelect = lastUsedModel;
+            console.log('[App] Restoring last used model:', lastUsedModel);
+          } else {
+            // Find a small model to use as default
+            const defaultModel = availableModels.find(m => 
+              m.model_id.includes('SmolLM2-135M') || 
+              m.model_id.includes('Qwen2.5-0.5B')
+            ) || availableModels[0];
+            modelToSelect = defaultModel.model_id;
+            console.log('[App] Selected default model:', modelToSelect);
+          }
+          
+          setSelectedModel(modelToSelect);
+          
+          // Auto-initialize the model
+          console.log('[App] Auto-initializing model:', modelToSelect);
+          setInitStatus('Loading model...');
+          await initializeLLM(modelToSelect);
+        } else {
+          setInitStatus('No models available');
         }
-        setInitStatus('Select a model to start');
       } else {
         setInitStatus('WASM mode - Click to initialize');
+        // Auto-initialize WASM mode
+        console.log('[App] Auto-initializing WASM mode...');
+        await initializeLLM();
       }
     } catch (error) {
       console.error('Failed to detect runtime:', error);
@@ -101,7 +164,8 @@ function App() {
     }
   };
 
-  const initializeLLM = async (modelToLoad = selectedModel) => {
+  // Define as function declaration for hoisting
+  async function initializeLLM(modelToLoad = selectedModel) {
     if (!modelToLoad && runtime === 'webgpu') {
       setInitStatus('Please select a model');
       return;
@@ -116,6 +180,8 @@ function App() {
       }
       if (result.selectedModel) {
         setSelectedModel(result.selectedModel);
+        // Save the successfully initialized model
+        localStorage.setItem('lastSelectedModel', result.selectedModel);
       }
       setInitStatus('Ready');
       setIsInitializing(false);
@@ -124,7 +190,7 @@ function App() {
       setInitStatus('Failed to initialize - Try another model');
       setIsInitializing(false);
     }
-  };
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -143,7 +209,67 @@ function App() {
 
     const userMessage = { role: 'user', content: input.trim() };
     const userQuery = input.trim();
-    setMessages(prev => [...prev, userMessage]);
+    
+    // Check for URLs and smart fetch if detected
+    let webContext = '';
+    if (smartFetchService.shouldFetchUrls(userQuery)) {
+      console.log('[App] Detected URLs in message, fetching content...');
+      
+      // Show loading state with URL detection message
+      const loadingMessage = { 
+        role: 'system', 
+        content: '🔍 Detected URLs in your message. Fetching web content...' 
+      };
+      setMessages(prev => [...prev, userMessage, loadingMessage]);
+      
+      try {
+        // Initialize smart fetch if needed
+        if (!smartFetchService.initialized) {
+          await smartFetchService.initialize();
+        }
+        
+        // Fetch URLs
+        const fetchResult = await smartFetchService.smartFetch(userQuery);
+        
+        if (fetchResult.content.length > 0) {
+          webContext = smartFetchService.formatForChat(fetchResult);
+          console.log(`[App] Fetched ${fetchResult.content.length} URLs successfully`);
+          
+          // Remove loading message and add success message
+          setMessages(prev => {
+            const msgs = prev.slice(0, -1); // Remove loading message
+            return [...msgs, {
+              role: 'system',
+              content: `✅ Fetched content from ${fetchResult.content.length} URL(s). Analyzing...`
+            }];
+          });
+          
+          // Small delay to show the success message
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Remove success message
+          setMessages(prev => prev.slice(0, -1));
+        } else {
+          // Remove loading message if no content fetched
+          setMessages(prev => prev.slice(0, -1));
+        }
+      } catch (error) {
+        console.error('[App] Smart fetch failed:', error);
+        // Remove loading message and show error
+        setMessages(prev => {
+          const msgs = prev.slice(0, -1);
+          return [...msgs, {
+            role: 'system',
+            content: '⚠️ Unable to fetch web content. Proceeding without it.'
+          }];
+        });
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        setMessages(prev => prev.slice(0, -1));
+      }
+    } else {
+      setMessages(prev => [...prev, userMessage]);
+    }
+    
     setInput('');
     setIsLoading(true);
     setIsStreaming(true);
@@ -152,27 +278,238 @@ function App() {
     setMessages(prev => [...prev, assistantMessage]);
 
     try {
-      const systemMessages = getSystemMessages();
+      // Check if we should enable web search based on the query AND if the model supports it
+      const modelSupportsFunctions = functionCallingService.supportsModelFunctionCalling(llmService.currentModel);
+      const shouldSearchWeb = functionCallingService.shouldUseWebSearch(userQuery);
+      
+      // For Hermes models, always enable manual function calling
+      // The model will autonomously decide when to search
+      const isHermesModel = llmService.currentModel?.includes('Hermes');
+      const useManualFunctionCalling = isHermesModel; // Always enabled for Hermes
+      const useStandardTools = modelSupportsFunctions && shouldSearchWeb && !isHermesModel;
+      
+      const systemMessages = getSystemMessages(
+        isHermesModel || (shouldSearchWeb && modelSupportsFunctions),
+        useManualFunctionCalling
+      );
+      
+      // Add web context if available
+      let enhancedUserMessage = userMessage;
+      if (webContext) {
+        enhancedUserMessage = {
+          role: 'user',
+          content: `${userMessage.content}\n\n${webContext}`
+        };
+      }
+      
       const allMessages = [
         ...systemMessages,
         ...messages,
-        userMessage
+        enhancedUserMessage
       ];
-
-      // Use the enhanced chat method that handles RAG context automatically
+      
+      if (!modelSupportsFunctions && !isHermesModel && shouldSearchWeb) {
+        console.log('[App] Web search requested but model does not support function calling');
+      }
+      
+      // Only use tools parameter for non-Hermes models that support it
+      const tools = useStandardTools ? functionCallingService.getToolSchemas() : undefined;
+      
+      // Use the enhanced chat method that handles RAG context and function calling
       const stream = llmService.chat(allMessages, { 
         temperature: activePersonaData?.temperature || temperature,
         ragLimit: 5,
-        ragThreshold: 0.7
+        ragThreshold: 0.7,
+        tools: tools
       });
 
+      let functionCallBuffer = null;
+      let contentBuffer = '';
+      let textFunctionCallDetected = null;
+      
       for await (const delta of stream) {
+        // Handle regular content
         if (delta.content) {
+          contentBuffer += delta.content;
           setMessages(prev => {
             const newMessages = [...prev];
-            newMessages[newMessages.length - 1].content += delta.content;
+            newMessages[newMessages.length - 1].content = contentBuffer;
             return newMessages;
           });
+        }
+        
+        // Check for text-based function call (fallback for models that don't support proper function calling)
+        if (delta.textFunctionCall) {
+          textFunctionCallDetected = delta.textFunctionCall;
+          console.log('[App] Text-based function call detected:', textFunctionCallDetected);
+        }
+        
+        // Handle tool/function calls
+        if (delta.tool_calls) {
+          for (const toolCall of delta.tool_calls) {
+            functionCallBuffer = toolCall;
+          }
+        }
+        
+        // When streaming is complete and we have a function call
+        if (delta.finish_reason === 'tool_calls' && functionCallBuffer) {
+          console.log('[App] Function call detected:', functionCallBuffer);
+          
+          // Execute the function call
+          try {
+            // Add status message
+            setMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1].content = contentBuffer + '\n\n🔍 Searching the web...';
+              return newMessages;
+            });
+            
+            // Execute the function
+            const functionResponse = await functionCallingService.processFunctionCall(functionCallBuffer);
+            
+            if (functionResponse) {
+              // Add function response to messages
+              const updatedMessages = [
+                ...allMessages,
+                { role: 'assistant', content: contentBuffer, tool_calls: [functionCallBuffer] },
+                functionResponse
+              ];
+              
+              // Continue conversation with function result
+              const continueStream = llmService.chat(updatedMessages, {
+                temperature: activePersonaData?.temperature || temperature,
+                ragLimit: 5,
+                ragThreshold: 0.7
+              });
+              
+              // Clear the status and start new response
+              setMessages(prev => {
+                const newMessages = [...prev];
+                newMessages[newMessages.length - 1].content = contentBuffer + '\n\n';
+                return newMessages;
+              });
+              
+              for await (const continueDelta of continueStream) {
+                if (continueDelta.content) {
+                  setMessages(prev => {
+                    const newMessages = [...prev];
+                    newMessages[newMessages.length - 1].content += continueDelta.content;
+                    return newMessages;
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.error('[App] Function call failed:', error);
+            setMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1].content = contentBuffer + '\n\n⚠️ Web search failed. Continuing with available information...';
+              return newMessages;
+            });
+          }
+        }
+      }
+      
+      // Handle text-based function calls (fallback for models that simulate function calls)
+      if (textFunctionCallDetected && textFunctionCallDetected.detected) {
+        console.log('[App] Processing text-based function call...');
+        
+        try {
+          // Execute the text-detected function
+          const searchResult = await functionCallingService.executeTextFunctionCall(textFunctionCallDetected);
+          
+          if (searchResult) {
+            // Update the message to show search was performed
+            setMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1].content = contentBuffer + '\n\n📌 Web Search Results:\n' + searchResult;
+              return newMessages;
+            });
+          }
+        } catch (error) {
+          console.error('[App] Text-based function call failed:', error);
+        }
+      }
+      
+      // Check for manual function call format [SEARCH: query] in the final content
+      if (useManualFunctionCalling && contentBuffer) {
+        const manualCall = functionCallingService.detectManualFunctionCall(contentBuffer);
+        if (manualCall.detected) {
+          console.log('[App] Manual function call detected:', manualCall);
+          
+          let searchResult = null;
+          try {
+            // Show searching animation
+            setMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1].content = '🔍 Searching the web...';
+              return newMessages;
+            });
+            
+            // Execute the search
+            searchResult = await functionCallingService.executeTextFunctionCall(manualCall);
+            
+            if (searchResult) {
+              // Store search results but don't display them yet
+              // Instead, immediately try to get a follow-up response from the model
+              try {
+                const searchResultMessage = { 
+                  role: 'user', 
+                  content: `Based on these search results, please provide a helpful response to the original question: "${userQuery}"\n\nSearch Results:\n${searchResult}`
+                };
+                
+                const continueMessages = [
+                  ...allMessages,
+                  { role: 'assistant', content: `[SEARCH: ${manualCall.query}]\n\nSearch Results:\n${searchResult}` },
+                  searchResultMessage
+                ];
+                
+                // Update to "Generating response..." indicator
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  newMessages[newMessages.length - 1].content = '✨ Analyzing search results...';
+                  return newMessages;
+                });
+                
+                // Continue the conversation with search results
+                const continueStream = await llmService.chat(continueMessages, {
+                  temperature: activePersonaData?.temperature || temperature,
+                  ragLimit: 5,
+                  ragThreshold: 0.7
+                  // Don't pass tools for the continuation
+                });
+                
+                // Start with empty content for clean response
+                let continuationContent = '';
+                for await (const delta of continueStream) {
+                  if (delta && delta.content) {
+                    continuationContent += delta.content;
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      newMessages[newMessages.length - 1].content = continuationContent;
+                      return newMessages;
+                    });
+                  }
+                }
+              } catch (contError) {
+                console.warn('[App] Could not generate follow-up response:', contError);
+                // Show a simplified message if follow-up fails
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  newMessages[newMessages.length - 1].content = `I found information about your query from web search. Based on the latest available information, I can provide some context, though I'm having difficulty generating a detailed response at the moment.`;
+                  return newMessages;
+                });
+              }
+            }
+          } catch (error) {
+            console.error('[App] Manual function call error:', error);
+            // Show clean error message
+            setMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1].content = '⚠️ Search failed. Please try again.';
+              return newMessages;
+            });
+          }
         }
       }
     } catch (error) {
@@ -191,6 +528,9 @@ function App() {
 
   const handleModelChange = async (model) => {
     setSelectedModel(model);
+    // Save to localStorage for next session
+    localStorage.setItem('lastSelectedModel', model);
+    console.log('[App] Saved model preference:', model);
     setSettingsOpen(false);
     
     // If no engine is loaded yet, initialize with the selected model
@@ -218,8 +558,8 @@ function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground">
-      <div className="flex flex-col h-full">
+    <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
+      <div className="flex flex-col h-full overflow-hidden">
         {/* Header */}
         <header className="flex items-center justify-between px-6 py-4 bg-card backdrop-blur-md border-b border-border shadow-sm">
           <div className="flex items-center gap-3">
@@ -278,6 +618,20 @@ function App() {
               title="Document Upload"
             >
               <Upload className="h-5 w-5" />
+            </Button>
+            
+            {/* Web Search Toggle */}
+            <Button
+              variant={showWebSearch ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => {
+                performanceOptimizer.trackInteraction('web-search-toggle');
+                setShowWebSearch(!showWebSearch);
+              }}
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Web Search"
+            >
+              <Globe className="h-5 w-5" />
             </Button>
             
             <Button
@@ -346,10 +700,15 @@ function App() {
           </div>
         )}
 
-        {/* Chat Container - fills remaining space */}
-        <div className="flex-1 flex flex-col mx-6 my-4 bg-card rounded-2xl shadow-xl backdrop-blur-sm overflow-hidden border border-border">
+        {/* Main Content Area with Optional Web Search Panel */}
+        <div className="flex-1 flex mx-6 my-4 gap-4 min-h-0">
+          {/* Chat Container - fills remaining space */}
+          <div className={cn(
+            "flex-1 flex flex-col bg-card rounded-2xl shadow-xl backdrop-blur-sm border border-border",
+            showWebSearch && "lg:flex-[2]"
+          )}>
           {/* Messages - fills available space */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-card to-secondary/10">
+          <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-4 bg-gradient-to-b from-card to-secondary/10">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                 <Sparkles className="h-12 w-12 mb-4 text-primary" />
@@ -397,11 +756,27 @@ function App() {
 
           {/* Input Form */}
           <form onSubmit={handleSubmit} className="p-4 bg-card border-t border-border">
+            {/* URL Detection Indicator */}
+            {detectedUrls.length > 0 && (
+              <div className="mb-2 px-3 py-2 bg-primary/10 text-primary rounded-lg flex items-center gap-2 text-sm">
+                <Globe className="h-4 w-4" />
+                <span>
+                  {detectedUrls.length} URL{detectedUrls.length > 1 ? 's' : ''} detected. 
+                  Content will be fetched automatically when you send.
+                </span>
+              </div>
+            )}
             <div className="flex gap-2">
               <input
                 type="text"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setInput(value);
+                  // Detect URLs in real-time
+                  const urls = smartFetchService.detectUrls(value);
+                  setDetectedUrls(urls);
+                }}
                 placeholder="Ask anything..."
                 disabled={isLoading || isInitializing}
                 className="flex-1 bg-secondary border border-border rounded-xl px-4 py-3 placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
@@ -420,6 +795,29 @@ function App() {
             </div>
           </form>
         </div>
+        
+        {/* Web Search Panel */}
+        {showWebSearch && (
+          <div className="lg:flex-1 bg-card rounded-2xl shadow-xl backdrop-blur-sm overflow-hidden border border-border">
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            }>
+              <WebSearchPanel
+                onResultSelect={(result) => {
+                  // Add search result to input or as context
+                  const contextText = `[Web Search Result for "${result.query}"]\n${result.content}\n[Source: ${result.source}]\n\n`;
+                  setInput(prev => prev + contextText);
+                  // Optionally close the search panel
+                  setShowWebSearch(false);
+                }}
+                onClose={() => setShowWebSearch(false)}
+              />
+            </React.Suspense>
+          </div>
+        )}
+      </div>
 
         {/* Settings Dialog */}
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>

@@ -36,15 +36,15 @@ export const CURATED_MODELS = [
     priority: 2
   },
   {
-    // Sweet spot for general use - reliable Meta model
-    model_id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
-    name: 'Llama 3.2 1B',
-    description: 'Quality responses with reasonable speed',
-    size: '~650MB',
-    speed: 'Fast',
-    quality: 'Very Good',
-    useCase: 'General purpose, reliable',
-    priority: 3
+    // Hermes model with function calling support
+    model_id: 'Hermes-3-Llama-3.1-8B-q4f16_1-MLC',
+    name: 'Hermes 3 Llama 8B',
+    description: 'Advanced with function calling & web search',
+    size: '~4.5GB',
+    speed: 'Slow',
+    quality: 'Excellent',
+    useCase: 'Advanced tasks, function calling',
+    priority: 6 // Lower priority due to large size
   },
   {
     // Microsoft's specialized model for technical tasks
@@ -69,23 +69,23 @@ export const CURATED_MODELS = [
     priority: 5
   },
   {
-    // Fast alternative to larger models
-    model_id: 'TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC',
-    name: 'TinyLlama 1.1B',
-    description: 'Lightweight yet capable, fast inference',
-    size: '~700MB',
+    // DeepSeek's general-purpose model with strong reasoning
+    model_id: 'DeepSeek-R1-Distill-Qwen-1.5B-q4f16_1-MLC',
+    name: 'DeepSeek 1.5B',
+    description: 'Efficient general-purpose model with strong reasoning',
+    size: '~900MB',
     speed: 'Fast',
-    quality: 'Good',
-    useCase: 'Fast responses, low resource',
-    priority: 6
-  }
+    quality: 'Very Good',
+    useCase: 'General chat, reasoning, analysis',
+    priority: 3
+  },
 ];
 
 // Model categories for filtering/organization
 export const MODEL_CATEGORIES = {
   ULTRA_FAST: ['SmolLM2-135M-Instruct-q4f16_1-MLC'],
   MULTILINGUAL: ['Qwen2.5-0.5B-Instruct-q4f16_1-MLC'],
-  GENERAL: ['Llama-3.2-1B-Instruct-q4f16_1-MLC', 'TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC'],
+  GENERAL: ['Qwen2.5-0.5B-Instruct-q4f16_1-MLC', 'gemma-2-2b-it-q4f16_1-MLC', 'DeepSeek-R1-Distill-Qwen-1.5B-q4f16_1-MLC'],
   CODING: ['Phi-3.5-mini-instruct-q4f16_1-MLC'],
   CREATIVE: ['gemma-2-2b-it-q4f16_1-MLC']
 };
@@ -93,7 +93,7 @@ export const MODEL_CATEGORIES = {
 // Recommended models by use case
 export const RECOMMENDED_MODELS = {
   LOW_MEMORY: 'SmolLM2-135M-Instruct-q4f16_1-MLC',
-  BALANCED: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+  BALANCED: 'gemma-2-2b-it-q4f16_1-MLC',
   CODING: 'Phi-3.5-mini-instruct-q4f16_1-MLC',
   CREATIVE: 'gemma-2-2b-it-q4f16_1-MLC',
   MULTILINGUAL: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC'

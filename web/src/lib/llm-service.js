@@ -248,10 +248,74 @@ class LLMService {
 
       const asyncChunkGenerator = await this.engine.chat.completions.create(request);
       
-      for await (const chunk of asyncChunkGenerator) {
-        const delta = chunk.choices[0]?.delta;
-        if (delta) {
-          yield delta;
+      try {
+        for await (const chunk of asyncChunkGenerator) {
+          const delta = chunk.choices[0]?.delta;
+          if (delta) {
+            yield delta;
+          }
+          // Also yield finish_reason if present for function calling
+          if (chunk.choices[0]?.finish_reason) {
+            yield { finish_reason: chunk.choices[0].finish_reason };
+          }
+        }
+      } catch (error) {
+        // Handle function calling parse errors gracefully
+        if (error.message?.includes('error encountered when parsing outputMessage for function calling')) {
+          console.warn('[LLM] Model attempted to respond with text instead of function call.');
+          console.error('[LLM] Full error:', error.message);
+          
+          // Try multiple extraction patterns
+          let extractedText = null;
+          
+          // Pattern 1: Original pattern - text between "Got outputMessage:" and "Got error:"
+          const match1 = error.message.match(/Got outputMessage: (.+?) Got error:/);
+          if (match1 && match1[1]) {
+            extractedText = match1[1];
+          }
+          
+          // Pattern 2: Match until end of string if "Got error:" is not found
+          if (!extractedText) {
+            const match2 = error.message.match(/Got outputMessage: (.+)$/);
+            if (match2 && match2[1]) {
+              // Remove trailing "Got error:" if it exists at the end
+              extractedText = match2[1].replace(/ Got error:.*$/, '');
+            }
+          }
+          
+          // Pattern 3: Get everything after "Got outputMessage:" and split on "Got error:"
+          if (!extractedText) {
+            const match3 = error.message.match(/Got outputMessage: (.+)/);
+            if (match3 && match3[1]) {
+              extractedText = match3[1].split('Got error:')[0].trim();
+            }
+          }
+          
+          if (extractedText) {
+            console.log('[LLM] Extracted text:', extractedText.substring(0, 100) + '...');
+            
+            // Check if the model is trying to simulate a function call in text
+            const { default: functionCallingService } = await import('./function-calling-service.js');
+            const textFunctionCall = functionCallingService.detectTextFunctionCall(extractedText);
+            
+            if (textFunctionCall.detected) {
+              console.log('[LLM] Detected text-based function call:', textFunctionCall);
+              // Yield a special marker for text-based function call
+              yield { 
+                content: extractedText,
+                textFunctionCall: textFunctionCall 
+              };
+            } else {
+              // Just yield the text content
+              yield { content: extractedText };
+            }
+          } else {
+            console.error('[LLM] Could not extract text from error message');
+            yield { content: "The model encountered an issue with function calling. It may not fully support this feature yet." };
+          }
+        } else {
+          // Re-throw other errors
+          throw error;
         }
       }
     } else {
@@ -314,10 +378,10 @@ class LLMService {
   }
 
   /**
-   * Enhanced chat method with RAG context integration
+   * Enhanced chat method with RAG context integration and function calling
    * @param {Array} messages - Chat messages
-   * @param {Object} options - Generation options
-   * @returns {AsyncGenerator} Message stream with RAG context
+   * @param {Object} options - Generation options including tools
+   * @returns {AsyncGenerator} Message stream with RAG context and function calls
    */
   async *chat(messages, options = {}) {
     if (!this.engine) {

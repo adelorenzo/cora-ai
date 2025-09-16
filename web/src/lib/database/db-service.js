@@ -9,10 +9,17 @@ let initialized = false;
 
 // Function to initialize PouchDB with browser-specific optimizations
 async function initPouchDB() {
-  if (initialized) return PouchDB;
+  if (initialized) {
+    console.log('[DB] PouchDB already initialized');
+    return PouchDB;
+  }
+  
+  console.log('[DB] Initializing PouchDB...');
+  const startTime = Date.now();
   
   try {
     // Import only essential modules for browser compatibility
+    console.log('[DB] Importing PouchDB modules...');
     const PouchDBCore = await import('pouchdb-core');
     const IdbAdapter = await import('pouchdb-adapter-idb');
     const FindPlugin = await import('pouchdb-find');
@@ -28,10 +35,12 @@ async function initPouchDB() {
       .plugin(Find);
       
     initialized = true;
-    console.log('PouchDB configured successfully (browser-optimized)');
+    const elapsed = Date.now() - startTime;
+    console.log(`[DB] PouchDB configured successfully in ${elapsed}ms (browser-optimized)`);
     return PouchDB;
   } catch (error) {
-    console.warn('PouchDB import failed, will use localStorage fallback:', error);
+    console.warn('[DB] PouchDB import failed, will use localStorage fallback:', error);
+    console.error('[DB] Error details:', error.message);
     initialized = true; // Prevent retries
     return null;
   }
@@ -236,7 +245,13 @@ class DatabaseService {
    * @returns {Promise<void>}
    */
   async initialize() {
-    if (this.initialized) return;
+    if (this.initialized) {
+      console.log('[DB Service] Already initialized, skipping');
+      return;
+    }
+
+    console.log('[DB Service] Starting initialization...');
+    const startTime = Date.now();
 
     // Browser environment check
     if (typeof window === 'undefined') {
@@ -245,17 +260,25 @@ class DatabaseService {
 
     try {
       // Check storage quota
+      console.log('[DB Service] Checking storage quota...');
       if ('storage' in navigator && 'estimate' in navigator.storage) {
         this.storageQuota = await navigator.storage.estimate();
+        const usedMB = Math.round(this.storageQuota.usage / 1024 / 1024);
+        const quotaMB = Math.round(this.storageQuota.quota / 1024 / 1024);
+        console.log(`[DB Service] Storage: ${usedMB}MB used of ${quotaMB}MB quota`);
       }
 
       // Try to initialize PouchDB first
+      console.log('[DB Service] Initializing PouchDB...');
       await this._initializePouchDB();
       
       this.initialized = true;
-      console.log(`Database initialized successfully${this.usingFallback ? ' (using localStorage fallback)' : ' (using IndexedDB)'}`);
+      const elapsed = Date.now() - startTime;
+      const storageType = this.usingFallback ? 'localStorage fallback' : 'IndexedDB';
+      console.log(`[DB Service] Initialization completed in ${elapsed}ms (using ${storageType})`);
     } catch (error) {
-      console.error('Database initialization failed:', error);
+      console.error('[DB Service] Initialization failed:', error);
+      console.error('[DB Service] Error stack:', error.stack);
       throw new Error(`Database initialization failed: ${error.message}`);
     }
   }

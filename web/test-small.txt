@@ -1,0 +1,5 @@
+This is a small test document for RAG indexing.
+
+It contains just a few paragraphs to test the indexing functionality without overwhelming the system.
+
+The RAG system should be able to index this document quickly and efficiently.

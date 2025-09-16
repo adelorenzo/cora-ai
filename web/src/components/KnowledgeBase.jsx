@@ -54,6 +54,11 @@ const KnowledgeBase = ({ open, onOpenChange, onRAGStatusChange }) => {
   const loadData = async () => {
     setLoading(true);
     try {
+      // Initialize database if not already initialized
+      if (!dbService.initialized) {
+        await dbService.initialize();
+      }
+      
       // Load documents
       const docs = await dbService.searchDocuments({}, { limit: 1000 });
       setDocuments(docs);
@@ -87,6 +92,11 @@ const KnowledgeBase = ({ open, onOpenChange, onRAGStatusChange }) => {
         console.log('RAG initialization progress:', progress);
       });
       setRagInitialized(true);
+      
+      // Don't auto-index documents to prevent memory issues
+      // Users can manually click "Index All" button after initialization
+      console.log('RAG initialized successfully. Use "Index All" button to index documents.');
+      
       await loadData(); // Refresh data
     } catch (error) {
       console.error('Failed to initialize RAG:', error);
@@ -253,14 +263,67 @@ const KnowledgeBase = ({ open, onOpenChange, onRAGStatusChange }) => {
               </Button>
             )}
 
+            {ragInitialized && documents.some(doc => !doc.indexed) && (
+              <Button 
+                onClick={async () => {
+                  const pendingDocs = documents.filter(doc => !doc.indexed && doc.status !== 'error');
+                  
+                  // Process documents one at a time with delays to prevent memory issues
+                  for (let i = 0; i < pendingDocs.length; i++) {
+                    const doc = pendingDocs[i];
+                    console.log(`Queueing for indexing (${i + 1}/${pendingDocs.length}): ${doc.name || doc.title}`);
+                    ragService.queueForIndexing(doc);
+                    
+                    // Add delay between documents to prevent memory overload
+                    if (i < pendingDocs.length - 1) {
+                      await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                  }
+                  
+                  // Refresh data after a longer delay
+                  setTimeout(loadData, 2000);
+                }}
+                variant="outline"
+                className="whitespace-nowrap"
+              >
+                <Database className="w-4 h-4 mr-2" />
+                Index All ({documents.filter(doc => !doc.indexed).length})
+              </Button>
+            )}
+
             <Button 
               onClick={loadData} 
               variant="outline" 
               size="icon"
               disabled={loading}
+              title="Refresh"
             >
               <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
             </Button>
+            
+            {documents.some(doc => doc.status === 'processing') && (
+              <Button
+                onClick={async () => {
+                  console.log('Resetting stuck documents...');
+                  const processingDocs = documents.filter(doc => doc.status === 'processing');
+                  for (const doc of processingDocs) {
+                    await dbService.updateDocument(doc._id, {
+                      status: 'pending',
+                      indexed: false
+                    });
+                  }
+                  await loadData();
+                  console.log('Reset complete');
+                }}
+                variant="outline"
+                size="sm"
+                className="text-orange-500 hover:text-orange-600"
+                title="Reset stuck documents"
+              >
+                <AlertCircle className="w-4 h-4 mr-1" />
+                Reset Stuck
+              </Button>
+            )}
           </div>
 
           {/* Content Area */}
@@ -364,15 +427,24 @@ const KnowledgeBase = ({ open, onOpenChange, onRAGStatusChange }) => {
                             >
                               <Eye className="w-3 h-3" />
                             </Button>
-                            {doc.status === 'error' && (
+                            {ragInitialized && !doc.indexed && doc.status !== 'processing' && (
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => reindexDocument(doc)}
+                                onClick={() => {
+                                  console.log(`Indexing single document: ${doc.title}`);
+                                  ragService.queueForIndexing(doc);
+                                  // Refresh after a delay
+                                  setTimeout(loadData, 1000);
+                                }}
                                 className="h-8 w-8"
-                                title="Retry indexing"
+                                title={doc.status === 'error' ? "Retry indexing" : "Index document"}
                               >
-                                <RefreshCw className="w-3 h-3" />
+                                {doc.status === 'error' ? (
+                                  <RefreshCw className="w-3 h-3" />
+                                ) : (
+                                  <Database className="w-3 h-3" />
+                                )}
                               </Button>
                             )}
                             <Button

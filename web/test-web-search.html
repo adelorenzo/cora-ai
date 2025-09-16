@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Web Search Service</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .section {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        h2 { color: #00d4ff; margin-top: 0; }
+        button {
+            background: #00d4ff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        button:hover { background: #00a8cc; }
+        .log {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .query-input {
+            width: 100%;
+            padding: 10px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+    </style>
+</head>
+<body>
+    <h1>Web Search Service Test</h1>
+    
+    <div class="section">
+        <h2>Test Web Search</h2>
+        <input type="text" id="queryInput" class="query-input" 
+               placeholder="E.g., current weather in Tokyo" 
+               value="current weather in Tokyo">
+        <button id="testSearchBtn">Test Search</button>
+        <button id="testFunctionCallBtn">Test Function Call Detection</button>
+        <button id="clearBtn">Clear</button>
+    </div>
+
+    <div class="section">
+        <h2>Results</h2>
+        <div id="results" class="log">Ready to test...</div>
+    </div>
+
+    <div class="section">
+        <h2>Debug Log</h2>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script type="module">
+        let webSearchService = null;
+        let functionCallingService = null;
+        
+        function log(msg, isError = false) {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const className = isError ? 'error' : '';
+            logEl.innerHTML += `<span class="${className}">[${time}] ${msg}</span>\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(msg);
+        }
+        
+        async function initialize() {
+            try {
+                log('Loading services...');
+                
+                // Load services
+                const searchModule = await import('./src/lib/web-search-service.js');
+                webSearchService = searchModule.default;
+                
+                const fcModule = await import('./src/lib/function-calling-service.js');
+                functionCallingService = fcModule.default;
+                
+                log('Services loaded successfully');
+                
+                // Initialize web search
+                await webSearchService.initialize();
+                log('Web search service initialized');
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, true);
+                console.error(error);
+            }
+        }
+        
+        async function testWebSearch() {
+            const query = document.getElementById('queryInput').value;
+            if (!query) return;
+            
+            log(`\n=== Testing Direct Web Search: "${query}" ===`);
+            document.getElementById('results').textContent = 'Searching...';
+            
+            try {
+                const results = await webSearchService.search(query);
+                log(`Search completed successfully`);
+                
+                // Display results
+                let resultText = `Query: ${query}\n\n`;
+                
+                if (results.answer) {
+                    resultText += `Answer: ${results.answer.text}\n\n`;
+                    log(`✓ Found answer: ${results.answer.text.substring(0, 100)}...`);
+                }
+                
+                if (results.abstract) {
+                    resultText += `Summary: ${results.abstract.text}\n`;
+                    resultText += `Source: ${results.abstract.source}\n\n`;
+                    log(`✓ Found abstract from ${results.abstract.source}`);
+                }
+                
+                if (results.definition) {
+                    resultText += `Definition: ${results.definition.text}\n\n`;
+                    log(`✓ Found definition`);
+                }
+                
+                if (results.related && results.related.length > 0) {
+                    resultText += `Related Topics:\n`;
+                    results.related.forEach((item, i) => {
+                        resultText += `${i + 1}. ${item.text}\n`;
+                    });
+                    log(`✓ Found ${results.related.length} related topics`);
+                }
+                
+                document.getElementById('results').textContent = resultText || 'No results found';
+                
+            } catch (error) {
+                log(`Error during search: ${error.message}`, true);
+                log(`Stack: ${error.stack}`, true);
+                document.getElementById('results').textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testFunctionCallDetection() {
+            const query = document.getElementById('queryInput').value;
+            if (!query) return;
+            
+            log(`\n=== Testing Function Call Detection ===`);
+            document.getElementById('results').textContent = 'Testing function call...';
+            
+            try {
+                // Test manual function call format
+                const testInput = `[SEARCH: ${query}]`;
+                log(`Testing input: "${testInput}"`);
+                
+                const detected = functionCallingService.detectManualFunctionCall(testInput);
+                
+                if (detected.detected) {
+                    log(`✓ Function call detected: ${detected.function}("${detected.query}")`);
+                    log(`✓ Is manual format: ${detected.isManualFormat}`);
+                    
+                    // Now execute it
+                    log('Executing detected function call...');
+                    const result = await functionCallingService.executeTextFunctionCall(detected);
+                    
+                    if (result) {
+                        log('✓ Function executed successfully');
+                        document.getElementById('results').textContent = 
+                            `Function Call Detected and Executed:\n\n${result}`;
+                    } else {
+                        log('✗ Function execution returned null', true);
+                        document.getElementById('results').textContent = 'Function execution failed';
+                    }
+                } else {
+                    log('✗ No function call detected', true);
+                    document.getElementById('results').textContent = 'No function call detected';
+                }
+                
+            } catch (error) {
+                log(`Error during test: ${error.message}`, true);
+                log(`Stack: ${error.stack}`, true);
+                document.getElementById('results').textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        // Initialize on load
+        initialize();
+        
+        // Event listeners
+        document.getElementById('testSearchBtn').addEventListener('click', testWebSearch);
+        document.getElementById('testFunctionCallBtn').addEventListener('click', testFunctionCallDetection);
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            document.getElementById('results').textContent = 'Ready to test...';
+            document.getElementById('log').innerHTML = '';
+        });
+        
+        document.getElementById('queryInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                testWebSearch();
+            }
+        });
+    </script>
+</body>
+</html>
