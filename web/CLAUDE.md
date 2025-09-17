@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a modern React-based browser LLM application that runs entirely client-side. It uses WebLLM with WebGPU as the primary runtime, with automatic fallback to WASM (via wllama) when WebGPU is unavailable.
 
+**Latest Status (Sprint 6 Complete)**:
+- ✅ RAG feature removed (was causing memory crashes)
+- ✅ Loading optimizations implemented
+- ✅ Custom markdown renderer (no external deps)
+- ✅ Stable and performant
+
 ## Development Commands
 
 ```bash
@@ -38,6 +44,7 @@ npm run preview
    - Settings modal with model selector
    - WebGPU/WASM runtime status indicator
    - Function calling demo integration
+   - Lazy loading for performance (except MarkdownRenderer)
 
 2. **src/lib/llm-service.js** - LLM abstraction service
    - WebGPU detection and WebLLM initialization
@@ -51,6 +58,9 @@ npm run preview
    - **PersonaSelector.jsx** - AI persona management with custom persona creation
    - **ThemeSwitcher.jsx** - Theme selection with quick light/dark toggle
    - **DropdownPortal.jsx** - Portal-based dropdown rendering for z-index isolation
+   - **SimpleMarkdownRenderer.jsx** - Custom lightweight markdown renderer (no deps)
+   - **LoadingSkeletons.jsx** - Loading states for lazy components
+   - **ConversationSwitcher.jsx** - Multi-conversation management
 
 4. **sw.js** - Service Worker (updated for Vite)
    - Caches built assets and model shards
@@ -59,6 +69,10 @@ npm run preview
 5. **src/fallback/wllama.js** - WASM fallback module
    - Loads when WebGPU unavailable
    - Uses tiny GGUF model (stories260K) for quick demo
+
+6. **Removed Components** (Sprint 6)
+   - ~~RAG/Embeddings~~ - Removed due to memory crashes
+   - ~~react-markdown~~ - Replaced with SimpleMarkdownRenderer
 
 ### External Dependencies (CDN)
 
