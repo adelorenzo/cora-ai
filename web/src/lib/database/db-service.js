@@ -10,30 +10,35 @@ let initialized = false;
 // Function to initialize PouchDB with browser-specific optimizations
 async function initPouchDB() {
   if (initialized) {
-    console.log('[DB] PouchDB already initialized');
-    return PouchDB;
+    console.log('[DB] Using localStorage fallback (PouchDB disabled)');
+    return null;
   }
-  
-  console.log('[DB] Initializing PouchDB...');
-  const startTime = Date.now();
-  
+
+  // DISABLED: PouchDB causing import errors and crashes
+  // Force use of localStorage fallback for stability
+  console.log('[DB] PouchDB disabled - using localStorage fallback for stability');
+  initialized = true;
+  return null;
+
+  // Original PouchDB code commented out to prevent crashes:
+  /*
   try {
     // Import only essential modules for browser compatibility
     console.log('[DB] Importing PouchDB modules...');
     const PouchDBCore = await import('pouchdb-core');
     const IdbAdapter = await import('pouchdb-adapter-idb');
     const FindPlugin = await import('pouchdb-find');
-    
+
     // Use default exports properly
     const Core = PouchDBCore.default || PouchDBCore;
     const Idb = IdbAdapter.default || IdbAdapter;
     const Find = FindPlugin.default || FindPlugin;
-    
+
     // Configure PouchDB with minimal required plugins
     PouchDB = Core
       .plugin(Idb)
       .plugin(Find);
-      
+
     initialized = true;
     const elapsed = Date.now() - startTime;
     console.log(`[DB] PouchDB configured successfully in ${elapsed}ms (browser-optimized)`);
@@ -44,6 +49,7 @@ async function initPouchDB() {
     initialized = true; // Prevent retries
     return null;
   }
+  */
 }
 
 // Simple fallback class for localStorage if PouchDB fails
