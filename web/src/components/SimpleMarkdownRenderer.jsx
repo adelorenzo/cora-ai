@@ -40,29 +40,33 @@ const SimpleMarkdownRenderer = ({ content }) => {
         return;
       }
 
-      // Inline code
-      let processedLine = line;
-      const inlineCodeRegex = /`([^`]+)`/g;
-      const parts = [];
-      let lastIndex = 0;
-      let match;
+      // Function to process inline code in a string
+      const processInlineCode = (text) => {
+        const inlineCodeRegex = /`([^`]+)`/g;
+        const parts = [];
+        let lastIndex = 0;
+        let match;
 
-      while ((match = inlineCodeRegex.exec(line)) !== null) {
-        if (match.index > lastIndex) {
-          parts.push(line.slice(lastIndex, match.index));
+        while ((match = inlineCodeRegex.exec(text)) !== null) {
+          if (match.index > lastIndex) {
+            parts.push(text.slice(lastIndex, match.index));
+          }
+          parts.push(
+            <code key={`inline-${index}-${match.index}`} className="bg-gray-200 dark:bg-gray-700 px-1 rounded">
+              {match[1]}
+            </code>
+          );
+          lastIndex = match.index + match[0].length;
         }
-        parts.push(
-          <code key={`inline-${index}-${match.index}`} className="bg-gray-200 dark:bg-gray-700 px-1 rounded">
-            {match[1]}
-          </code>
-        );
-        lastIndex = match.index + match[0].length;
-      }
-      if (lastIndex < line.length) {
-        parts.push(line.slice(lastIndex));
-      }
+        if (lastIndex < text.length) {
+          parts.push(text.slice(lastIndex));
+        }
 
-      processedLine = parts.length > 0 ? parts : line;
+        return parts.length > 0 ? parts : text;
+      };
+
+      // Process the current line for inline code
+      let processedLine = processInlineCode(line);
 
       // Headers
       if (line.startsWith('### ')) {
@@ -97,16 +101,22 @@ const SimpleMarkdownRenderer = ({ content }) => {
       }
       // Lists
       else if (line.match(/^[-*+]\s/)) {
+        // Remove the list marker and process inline code on the clean content
+        const cleanContent = line.slice(2);
+        const processedContent = processInlineCode(cleanContent);
         elements.push(
           <li key={`li-${index}`} className="ml-4 list-disc">
-            {Array.isArray(processedLine) ? processedLine : line.slice(2)}
+            {processedContent}
           </li>
         );
       }
       else if (line.match(/^\d+\.\s/)) {
+        // Remove the numbered list marker and process inline code on the clean content
+        const cleanContent = line.replace(/^\d+\.\s/, '');
+        const processedContent = processInlineCode(cleanContent);
         elements.push(
           <li key={`oli-${index}`} className="ml-4 list-decimal">
-            {Array.isArray(processedLine) ? processedLine : line.replace(/^\d+\.\s/, '')}
+            {processedContent}
           </li>
         );
       }

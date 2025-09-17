@@ -1,5 +1,6 @@
 const WEBLLM_URL = "https://esm.run/@mlc-ai/web-llm@0.2.79";
 const WLLAMA_URL = "https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.5/esm/wasm-from-cdn.js";
+const WLLAMA_FALLBACK_URL = "https://unpkg.com/@wllama/wllama@2.3.5/esm/wasm-from-cdn.js";
 
 import { CURATED_MODELS, RECOMMENDED_MODELS } from '../config/models.js';
 import modelOptimizer from './model-optimizer.js';
@@ -14,7 +15,10 @@ class LLMService {
   }
 
   async detectRuntime() {
-    if (navigator.gpu) {
+    // Firefox often has CORS issues with CDN imports, force WASM fallback
+    const isFirefox = navigator.userAgent.toLowerCase().includes('firefox');
+
+    if (!isFirefox && navigator.gpu) {
       try {
         const adapter = await navigator.gpu.requestAdapter();
         if (adapter) {
@@ -252,8 +256,22 @@ class LLMService {
   }
 
   async initWASM() {
+    let wllamaModule;
     try {
-      const wllamaModule = await import(/* @vite-ignore */ WLLAMA_URL);
+      // Try primary CDN first
+      wllamaModule = await import(/* @vite-ignore */ WLLAMA_URL);
+    } catch (error) {
+      console.warn('Primary WASM CDN failed, trying fallback:', error);
+      try {
+        // Try fallback CDN
+        wllamaModule = await import(/* @vite-ignore */ WLLAMA_FALLBACK_URL);
+      } catch (fallbackError) {
+        console.error('Both WASM CDNs failed:', fallbackError);
+        throw new Error('WASM module unavailable - both CDNs failed');
+      }
+    }
+
+    try {
       const { startWasmFallback } = await import("../../fallback/wllama.js");
 
       if (this.initCallback) {

@@ -25,15 +25,15 @@ export const CURATED_MODELS = [
     priority: 1 // Primary model
   },
   {
-    // Llama 3.1 8B - native function calling
-    model_id: 'Llama-3.1-8B-Instruct-q4f16_1-MLC',
-    name: 'Llama 3.1 (8B)',
-    description: 'Native function calling and tool use',
-    size: '~4.7GB',
-    speed: 'Moderate',
-    quality: 'Excellent',
-    useCase: 'Function calling, tool integration',
-    priority: 2 // Function calling specialist
+    // Llama 3.2 3B - efficient and fast with function calling
+    model_id: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',
+    name: 'Llama 3.2 (3B)',
+    description: 'Efficient, fast responses with function calling support',
+    size: '~2.3GB',
+    speed: 'Fast',
+    quality: 'Very Good',
+    useCase: 'General purpose, quick responses, function calling',
+    priority: 2 // Balanced efficiency model
   },
   {
     // Hermes model with function calling support
@@ -50,16 +50,16 @@ export const CURATED_MODELS = [
 
 // Model categories for filtering/organization
 export const MODEL_CATEGORIES = {
-  LIGHTWEIGHT: ['DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC'],
-  BALANCED: ['Llama-3.1-8B-Instruct-q4f16_1-MLC', 'DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC'],
-  ADVANCED: ['Hermes-3-Llama-3.1-8B-q4f16_1-MLC', 'Llama-3.1-8B-Instruct-q4f16_1-MLC', 'DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC']
+  LIGHTWEIGHT: ['Llama-3.2-3B-Instruct-q4f16_1-MLC'],
+  BALANCED: ['Llama-3.2-3B-Instruct-q4f16_1-MLC', 'DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC'],
+  ADVANCED: ['Hermes-3-Llama-3.1-8B-q4f16_1-MLC', 'DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC']
 };
 
 // Recommended models by use case
 export const RECOMMENDED_MODELS = {
-  LOW_MEMORY: 'DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC',
-  BALANCED: 'DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC',
-  FAST: 'Llama-3.1-8B-Instruct-q4f16_1-MLC',
+  LOW_MEMORY: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',
+  BALANCED: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',
+  FAST: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',
   ADVANCED: 'DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC',
-  FUNCTION_CALLING: 'Llama-3.1-8B-Instruct-q4f16_1-MLC'
+  FUNCTION_CALLING: 'Llama-3.2-3B-Instruct-q4f16_1-MLC'
 };
