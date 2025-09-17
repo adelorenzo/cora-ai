@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Settings, Trash2, Cpu, Zap, Loader2, Sparkles, Database, MessageSquare, Copy, Check, RefreshCw } from 'lucide-react';
+import { Send, Settings, Trash2, Cpu, Zap, Loader2, Sparkles, Database, MessageSquare, Copy, Check, RefreshCw, Download, FileText, FileSpreadsheet, AlignLeft, Activity } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog';
 import { Badge } from './components/ui/badge';
@@ -28,7 +28,14 @@ import smartFetchService from './lib/smart-fetch-service';
 import functionCallingService from './lib/function-calling-service';
 import settingsService from './lib/settings-service';
 import conversationManager from './lib/conversation-manager';
+import { exportConversation } from './lib/export-utils';
+import ExportDropdown from './components/ExportDropdown';
 import { cn } from './lib/utils';
+import { SkipToContent } from './components/AccessibilityProvider';
+// Performance monitor will be imported dynamically
+
+// Lazy load performance dashboard
+const PerformanceDashboard = React.lazy(() => import('./components/PerformanceDashboard'));
 
 function App() {
   const { currentTheme } = useTheme();
@@ -48,17 +55,22 @@ function App() {
     });
   }, []);
 
-  // Listen for conversation changes
+  // Dynamically import performance monitor to avoid initial memory issues
   useEffect(() => {
-    const handleConversationChange = (data) => {
-      setActiveConversation(data.activeConversation);
-      setConversations(data.conversations);
+    const loadPerformanceMonitor = async () => {
+      try {
+        const { default: monitor } = await import('./lib/performance-monitor');
+        setPerformanceMonitor(monitor);
+        console.log('[App] Performance monitor loaded');
+      } catch (error) {
+        console.warn('[App] Failed to load performance monitor:', error);
+      }
     };
-    
-    conversationManager.addListener(handleConversationChange);
-    return () => conversationManager.removeListener(handleConversationChange);
+
+    // Delay loading slightly to allow main app to initialize
+    setTimeout(loadPerformanceMonitor, 2000);
   }, []);
-  
+
   const [activeConversation, setActiveConversation] = useState(() => conversationManager.getActiveConversation());
   const [conversations, setConversations] = useState(() => conversationManager.getAllConversations());
   const messages = activeConversation?.messages || [];
@@ -76,9 +88,35 @@ function App() {
   const [detectedUrls, setDetectedUrls] = useState([]);
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [showCopyModal, setShowCopyModal] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [regeneratingIndex, setRegeneratingIndex] = useState(null);
   const [responseHistory, setResponseHistory] = useState({}); // Store previous responses by message index
+  const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
+  const [performanceMonitor, setPerformanceMonitor] = useState(null);
   const messagesEndRef = useRef(null);
+
+  // Listen for conversation changes
+  useEffect(() => {
+    const handleConversationChange = (data) => {
+      setActiveConversation(data.activeConversation);
+      setConversations(data.conversations);
+    };
+
+    conversationManager.addListener(handleConversationChange);
+    return () => conversationManager.removeListener(handleConversationChange);
+  }, []);
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showExportMenu && !event.target.closest('.export-menu-container')) {
+        setShowExportMenu(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showExportMenu]);
 
   // Helper functions for conversation management
   const addMessageToConversation = (message) => {
@@ -325,8 +363,10 @@ function App() {
       setInitStatus('Please select a model');
       return;
     }
-    
+
     setIsInitializing(true);
+    performanceMonitor?.startLLMInit();
+
     try {
       const result = await llmService.initialize(modelToLoad, setInitStatus);
       setRuntime(result.runtime);
@@ -340,8 +380,10 @@ function App() {
       }
       setInitStatus('Ready');
       setIsInitializing(false);
+      performanceMonitor?.endLLMInit();
     } catch (error) {
       console.error('Failed to initialize LLM:', error);
+      performanceMonitor?.trackError(error, 'LLM initialization');
       setInitStatus('Failed to initialize - Try another model');
       setIsInitializing(false);
     }
@@ -364,7 +406,11 @@ function App() {
 
     const userMessage = { role: 'user', content: input.trim() };
     const userQuery = input.trim();
-    
+    const messageId = Date.now();
+
+    // Start performance tracking
+    const startTime = performanceMonitor?.startMessageProcessing(messageId);
+
     // Add user message to conversation
     addMessageToConversation(userMessage);
     
@@ -652,6 +698,10 @@ function App() {
     } finally {
       setIsLoading(false);
       setIsStreaming(false);
+      // End performance tracking
+      if (messageId && startTime) {
+        performanceMonitor?.endMessageProcessing(messageId, startTime);
+      }
     }
   };
 
@@ -696,6 +746,7 @@ function App() {
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
+      <SkipToContent />
       {/* Copy to Clipboard Modal */}
       {showCopyModal && (
         <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
@@ -733,26 +784,50 @@ function App() {
               <PersonaSelector />
             </React.Suspense>
 
-            {/* Conversations Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowConversations(!showConversations)}
-              className="text-muted-foreground hover:text-foreground hover:bg-secondary"
-              title="Conversations"
-            >
-              <MessageSquare className="h-4 w-4" />
-            </Button>
-
             <React.Suspense fallback={<ThemeSwitcherSkeleton />}>
               <ThemeSwitcher />
             </React.Suspense>
-            
+
+            {/* Export Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('[Export] Current state:', showExportMenu, 'Setting to:', !showExportMenu);
+                setShowExportMenu(!showExportMenu);
+              }}
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Export conversation"
+              aria-label="Export conversation"
+              disabled={messages.length === 0}
+            >
+              <Download className="h-5 w-5" />
+            </Button>
+            <ExportDropdown
+              isOpen={showExportMenu}
+              onClose={() => setShowExportMenu(false)}
+              messages={messages}
+              title={activeConversation?.title || 'Cora Chat'}
+            />
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowPerformanceDashboard(true)}
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Performance Dashboard"
+              aria-label="Open performance dashboard"
+            >
+              <Activity className="h-5 w-5" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSettingsOpen(true)}
               className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Settings"
+              aria-label="Open settings"
             >
               <Settings className="h-5 w-5" />
             </Button>
@@ -761,6 +836,8 @@ function App() {
               size="icon"
               onClick={clearChat}
               className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Clear chat"
+              aria-label="Clear chat history"
             >
               <Trash2 className="h-5 w-5" />
             </Button>
@@ -769,6 +846,18 @@ function App() {
 
         {/* Status Bar */}
         <div className="relative z-50 px-6 py-2 bg-secondary/50 backdrop-blur-sm flex items-center gap-3 border-b border-border">
+          {/* Conversations Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowConversations(!showConversations)}
+            className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+            title="Conversations"
+            aria-label="Toggle conversations panel"
+          >
+            <MessageSquare className="h-4 w-4" />
+          </Button>
+
           <React.Suspense fallback={<ModelSelectorSkeleton />}>
             <ModelSelector
               currentModel={selectedModel}
@@ -817,9 +906,9 @@ function App() {
           )}
 
           {/* Chat Container - fills remaining space */}
-          <div className="flex-1 flex flex-col bg-card rounded-2xl shadow-xl backdrop-blur-sm border border-border">
+          <main id="main-content" role="main" className="flex-1 flex flex-col bg-card rounded-2xl shadow-xl backdrop-blur-sm border border-border">
           {/* Messages - fills available space */}
-          <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-4 bg-gradient-to-b from-card to-secondary/10">
+          <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-4 bg-gradient-to-b from-card to-secondary/10" tabIndex="0" aria-label="Chat messages">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                 <Sparkles className="h-12 w-12 mb-4 text-primary" />
@@ -872,6 +961,7 @@ function App() {
                           "p-1.5 rounded-lg hover:bg-secondary/50"
                         )}
                         title="Copy to clipboard"
+                        aria-label="Copy message to clipboard"
                       >
                         {copiedIndex === idx ? (
                           <Check className="h-3 w-3" />
@@ -892,6 +982,7 @@ function App() {
                           title={responseHistory[idx]?.length > 1
                             ? `Regenerate (${responseHistory[idx].length} versions)`
                             : "Regenerate response"}
+                          aria-label="Regenerate AI response"
                         >
                           <RefreshCw
                             className={cn(
@@ -935,11 +1026,13 @@ function App() {
                 placeholder="Ask anything..."
                 disabled={isLoading || isInitializing}
                 className="flex-1 bg-secondary border border-border rounded-xl px-4 py-3 placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                aria-label="Chat message input"
               />
               <Button
                 type="submit"
                 disabled={isLoading || isInitializing || !input.trim()}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 shadow-lg transition-all transform hover:scale-105"
+                aria-label="Send message"
               >
                 {isLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -949,8 +1042,8 @@ function App() {
               </Button>
             </div>
           </form>
-        </div>
-        
+        </main>
+
         {/* Web Search Panel */}
       </div>
 
@@ -992,6 +1085,14 @@ function App() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Performance Dashboard */}
+        <React.Suspense fallback={null}>
+          <PerformanceDashboard
+            isOpen={showPerformanceDashboard}
+            onClose={() => setShowPerformanceDashboard(false)}
+          />
+        </React.Suspense>
 
       </div>
     </div>

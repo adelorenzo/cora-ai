@@ -97,6 +97,17 @@ class LLMService {
   }
 
   async initWebLLM(model) {
+    // Model caching constants
+    const MODEL_CACHE_KEY = 'cora_cached_model';
+    const MODEL_CACHE_TIMESTAMP_KEY = 'cora_cached_model_timestamp';
+    const CACHE_EXPIRY_HOURS = 24; // Cache for 24 hours
+
+    // Check if model is already cached and valid
+    const cachedModel = localStorage.getItem(MODEL_CACHE_KEY);
+    const cacheTimestamp = localStorage.getItem(MODEL_CACHE_TIMESTAMP_KEY);
+    const isModelCached = cachedModel && cacheTimestamp &&
+      (Date.now() - parseInt(cacheTimestamp)) < (CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
+
     let webllm;
     try {
       webllm = await import(/* @vite-ignore */ WEBLLM_URL);
@@ -157,10 +168,24 @@ class LLMService {
     let attemptedModels = new Set();
     let lastError = null;
     
+    // Check if using cached model and optimize progress reporting
+    if (isModelCached && cachedModel === selectedModel) {
+      if (this.initCallback) {
+        this.initCallback("Loading cached model...");
+        // Skip download phase for cached models
+        setTimeout(() => this.initCallback("Initializing from cache..."), 100);
+      }
+    }
+
     // First attempt with selected model
     try {
       this.engine = await webllm.CreateMLCEngine(selectedModel, engineConfig);
       this.currentModel = selectedModel;
+
+      // Cache the successfully loaded model
+      localStorage.setItem(MODEL_CACHE_KEY, selectedModel);
+      localStorage.setItem(MODEL_CACHE_TIMESTAMP_KEY, Date.now().toString());
+
       return { runtime: "webgpu", models: curatedModels, selectedModel };
     } catch (error) {
       console.error('Error creating WebLLM engine with', selectedModel, ':', error);
@@ -186,11 +211,15 @@ class LLMService {
           
           this.engine = await webllm.CreateMLCEngine(fallbackModel.model_id, engineConfig);
           this.currentModel = fallbackModel.model_id;
-          
+
+          // Cache the successfully loaded fallback model
+          localStorage.setItem(MODEL_CACHE_KEY, fallbackModel.model_id);
+          localStorage.setItem(MODEL_CACHE_TIMESTAMP_KEY, Date.now().toString());
+
           console.log('Successfully recovered with model:', fallbackModel.model_id);
-          return { 
-            runtime: "webgpu", 
-            models: curatedModels, 
+          return {
+            runtime: "webgpu",
+            models: curatedModels,
             selectedModel: fallbackModel.model_id,
             recoveryUsed: true,
             originalError: error.message
@@ -262,8 +291,15 @@ class LLMService {
       const request = {
         messages,
         temperature: options.temperature || 0.7,
-        max_tokens: options.maxTokens || 512,
+        max_tokens: options.maxTokens || 1000, // Increased for better responses
         stream: true,
+        // Streaming optimizations for faster processing
+        stream_options: {
+          include_usage: false  // Skip usage stats for speed
+        },
+        // Performance optimizations
+        top_p: 0.9,  // Slightly more focused responses
+        frequency_penalty: 0.1,  // Reduce repetition
       };
 
       if (options.tools) {
@@ -272,18 +308,51 @@ class LLMService {
       }
 
       const asyncChunkGenerator = await this.engine.chat.completions.create(request);
-      
+
+      // Streaming optimization: batch tokens for better UI performance
+      let tokenBuffer = '';
+      let lastYieldTime = Date.now();
+      const BATCH_INTERVAL_MS = 50; // Yield batched tokens every 50ms
+
       try {
         for await (const chunk of asyncChunkGenerator) {
           const delta = chunk.choices[0]?.delta;
-          if (delta) {
+
+          if (delta?.content) {
+            tokenBuffer += delta.content;
+
+            // Yield batched tokens at intervals for smoother UI updates
+            const now = Date.now();
+            if (now - lastYieldTime >= BATCH_INTERVAL_MS || tokenBuffer.length > 10) {
+              yield { content: tokenBuffer };
+              tokenBuffer = '';
+              lastYieldTime = now;
+            }
+          } else if (delta) {
+            // Yield any buffered content first
+            if (tokenBuffer) {
+              yield { content: tokenBuffer };
+              tokenBuffer = '';
+            }
             yield delta;
           }
+
           // Also yield finish_reason if present for function calling
           if (chunk.choices[0]?.finish_reason) {
+            // Yield any remaining buffered content
+            if (tokenBuffer) {
+              yield { content: tokenBuffer };
+              tokenBuffer = '';
+            }
             yield { finish_reason: chunk.choices[0].finish_reason };
           }
         }
+
+        // Yield any remaining buffered content
+        if (tokenBuffer) {
+          yield { content: tokenBuffer };
+        }
+      }
       } catch (error) {
         // Handle function calling parse errors gracefully
         if (error.message?.includes('error encountered when parsing outputMessage for function calling')) {
