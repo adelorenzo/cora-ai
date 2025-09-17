@@ -95,6 +95,40 @@ function App() {
   const [performanceMonitor, setPerformanceMonitor] = useState(null);
   const messagesEndRef = useRef(null);
 
+  // Format timestamp for display
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+
+    if (isToday) {
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } else if (isYesterday) {
+      return 'Yesterday ' + date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } else {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+  };
+
   // Listen for conversation changes
   useEffect(() => {
     const handleConversationChange = (data) => {
@@ -209,8 +243,12 @@ function App() {
       conversationManager.save();
       setActiveConversation(conversationManager.getActiveConversation());
 
-      // Add empty message for streaming
-      addMessageToConversation({ role: 'assistant', content: '' });
+      // Add empty message for streaming with timestamp
+      addMessageToConversation({
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString()
+      });
 
       // Generate new response using streaming
       const systemMessages = getSystemMessages(false, false);
@@ -404,7 +442,11 @@ function App() {
       }
     }
 
-    const userMessage = { role: 'user', content: input.trim() };
+    const userMessage = {
+      role: 'user',
+      content: input.trim(),
+      timestamp: new Date().toISOString()
+    };
     const userQuery = input.trim();
     const messageId = Date.now();
 
@@ -474,7 +516,11 @@ function App() {
     setIsLoading(true);
     setIsStreaming(true);
 
-    const assistantMessage = { role: 'assistant', content: '' };
+    const assistantMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString()
+    };
     addMessageToConversation(assistantMessage);
 
     try {
@@ -950,26 +996,33 @@ function App() {
                   </div>
                   {msg.content && (
                     <div className={cn(
-                      "flex gap-1",
+                      "flex items-center gap-2 text-xs text-muted-foreground",
                       msg.role === "user" ? "flex-row-reverse" : "flex-row"
                     )}>
-                      <button
-                        onClick={() => handleCopyMessage(msg.content, idx)}
-                        className={cn(
-                          "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
-                          "text-muted-foreground hover:text-foreground",
-                          "p-1.5 rounded-lg hover:bg-secondary/50"
-                        )}
-                        title="Copy to clipboard"
-                        aria-label="Copy message to clipboard"
-                      >
-                        {copiedIndex === idx ? (
-                          <Check className="h-3 w-3" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
-                        )}
-                      </button>
-                      {msg.role === "assistant" && (
+                      <span className="select-none">
+                        {formatTimestamp(msg.timestamp)}
+                      </span>
+                      <div className={cn(
+                        "flex gap-1",
+                        msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                      )}>
+                        <button
+                          onClick={() => handleCopyMessage(msg.content, idx)}
+                          className={cn(
+                            "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+                            "text-muted-foreground hover:text-foreground",
+                            "p-1 rounded hover:bg-secondary/50"
+                          )}
+                          title="Copy to clipboard"
+                          aria-label="Copy message to clipboard"
+                        >
+                          {copiedIndex === idx ? (
+                            <Check className="h-3 w-3" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </button>
+                        {msg.role === "assistant" && (
                         <button
                           onClick={() => handleRegenerateMessage(idx)}
                           disabled={regeneratingIndex === idx || isLoading}
@@ -992,6 +1045,7 @@ function App() {
                           />
                         </button>
                       )}
+                      </div>
                     </div>
                   )}
                 </div>

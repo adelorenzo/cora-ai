@@ -120,7 +120,7 @@ test.describe('Cross-Browser Compatibility', () => {
     }
 
     // Close settings
-    await page.click('[data-testid="close-settings"]');
+    await page.keyboard.press('Escape');
 
     // Wait for initialization
     await page.waitForTimeout(5000);
@@ -234,7 +234,7 @@ test.describe('Cross-Browser Compatibility', () => {
     }
 
     // Close settings
-    await page.click('[data-testid="close-settings"]');
+    await page.keyboard.press('Escape');
 
     // Reload page
     await page.reload();
