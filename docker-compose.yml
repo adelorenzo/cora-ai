@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # Development service
+  cora-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./web:/app/web:ro
+    environment:
+      - NODE_ENV=development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Production service
+  cora-prod:
+    image: cora-ai:latest
+    ports:
+      - "8001:8000"
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    profiles:
+      - production
+
+  # Registry image service (when available)
+  cora-registry:
+    image: git.oe74.net/adelorenzo/webgpu-webllm-app/cora-ai:latest
+    ports:
+      - "8002:8000"
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    profiles:
+      - registry
+
+networks:
+  default:
+    name: cora-network

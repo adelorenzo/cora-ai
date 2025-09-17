@@ -165,6 +165,24 @@ npm test
 npm run build
 ```
 
+### CI/CD Pipeline ✅
+
+**Automated with Gitea Runners** - All development tasks are now automated through our CI/CD pipeline with 3 active runners.
+
+#### Pipeline Triggers
+- **Push to `develop`**: Runs build and test jobs
+- **Push to `main`**: Builds, tests, and creates Docker images
+- **Version tags (`v*`)**: Full release with artifacts
+
+#### Available Workflows
+- ✅ Automated testing (Playwright)
+- ✅ Build verification
+- ✅ Docker image creation
+- ✅ Security scanning
+- ✅ Release automation
+
+View pipeline status: [Actions](https://git.oe74.net/adelorenzo/webgpu-webllm-app/actions)
+
 ### Web Search Setup (Optional)
 ```bash
 # Start local SearXNG instance
