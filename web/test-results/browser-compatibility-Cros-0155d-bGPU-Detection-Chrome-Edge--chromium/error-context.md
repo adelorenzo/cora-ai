@@ -1,0 +1,54 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to main content" [ref=e4] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=e5]:
+      - banner [ref=e6]:
+        - generic [ref=e11]:
+          - img "Cora" [ref=e12]
+          - generic [ref=e13]:
+            - heading "Cora" [level=1] [ref=e14]
+            - generic [ref=e15]: 100% Local • No Server • No Keys
+        - generic [ref=e16]:
+          - button "🤖 Assistant" [ref=e18] [cursor=pointer]:
+            - generic [ref=e19] [cursor=pointer]: 🤖
+            - generic [ref=e20] [cursor=pointer]: Assistant
+            - img [ref=e21] [cursor=pointer]
+          - generic [ref=e25]:
+            - button "🌙" [ref=e26] [cursor=pointer]:
+              - generic [ref=e27] [cursor=pointer]: 🌙
+            - button "Choose theme" [ref=e28] [cursor=pointer]:
+              - img [ref=e29] [cursor=pointer]
+          - button "Export conversation" [disabled]:
+            - img
+          - button "Open performance dashboard" [ref=e35] [cursor=pointer]:
+            - img [ref=e36] [cursor=pointer]
+          - button "Open settings" [ref=e38] [cursor=pointer]:
+            - img [ref=e39] [cursor=pointer]
+          - button "Clear chat history" [ref=e42] [cursor=pointer]:
+            - img [ref=e43] [cursor=pointer]
+      - generic [ref=e46]:
+        - button "Toggle conversations panel" [ref=e47] [cursor=pointer]:
+          - img [ref=e48] [cursor=pointer]
+        - button "Hermes 3 Llama 8B" [ref=e51] [cursor=pointer]:
+          - img [ref=e52] [cursor=pointer]
+          - generic [ref=e61] [cursor=pointer]: Hermes 3 Llama 8B
+          - img [ref=e62] [cursor=pointer]
+        - generic [ref=e64]:
+          - img [ref=e65]
+          - text: NONE
+        - generic [ref=e68]: Ready
+      - main [ref=e70]:
+        - generic [ref=e72]:
+          - img [ref=e73]
+          - paragraph [ref=e76]: Start a conversation
+          - paragraph [ref=e77]: Your AI assistant runs entirely in this browser
+        - generic [ref=e79]:
+          - textbox "Chat message input" [ref=e80]
+          - button "Send message" [disabled]:
+            - img
+  - status [ref=e81]
+```

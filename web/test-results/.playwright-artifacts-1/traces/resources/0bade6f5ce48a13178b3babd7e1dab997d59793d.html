@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <script type="module">import { injectIntoGlobalHook } from "/@react-refresh";
+injectIntoGlobalHook(window);
+window.$RefreshReg$ = () => {};
+window.$RefreshSig$ = () => (type) => type;</script>
+
+  <script type="module" src="/@vite/client"></script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cora - AI Assistant</title>
+
+  <!-- Modulepreload for ES modules -->
+  <link rel="modulepreload" href="/src/App.jsx">
+
+  <!-- Preconnect to CDNs -->
+  <link rel="preconnect" href="https://esm.run">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="dns-prefetch" href="https://unpkg.com">
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="theme-color" content="#0f172a">
+
+  <!-- Performance hints -->
+  <meta name="description" content="Cora - Your local AI assistant with 100% privacy">
+  <meta name="keywords" content="AI, assistant, local, privacy, WebGPU, WASM">
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+  <script>
+    // Only register service worker in production (detect by checking if Vite dev server is running)
+    const isProduction = !location.hostname.includes('localhost') && !location.hostname.includes('127.0.0.1');
+    
+    if ('serviceWorker' in navigator && isProduction) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(console.error);
+      });
+    } else if ('serviceWorker' in navigator) {
+      // Unregister existing service workers in development
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(registration => registration.unregister());
+      });
+    }
+  </script>
+</body>
+</html>
