@@ -6,15 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a modern React-based browser LLM application that runs entirely client-side. It uses WebLLM with WebGPU as the primary runtime, with automatic fallback to WASM (via wllama) when WebGPU is unavailable.
 
-**Latest Status (Sprint 7.5 Complete)**:
-- ✅ RAG feature removed (was causing memory crashes)
-- ✅ Loading optimizations implemented
-- ✅ Custom markdown renderer (no external deps)
-- ✅ Comprehensive performance monitoring dashboard
-- ✅ Memory leak detection and prevention
-- ✅ Model caching system (40-50% faster re-initialization)
-- ✅ Streaming response optimization (20-30% faster processing)
-- ✅ Stable and highly performant
+**Latest Status (Sprint 8 Complete)**:
+- ✅ Critical production build fixes implemented
+- ✅ Downgraded React 19 to React 18 for scheduler compatibility
+- ✅ Fixed JavaScript minification issues breaking module resolution
+- ✅ Resolved "Cannot set properties of undefined" errors in production
+- ✅ App now builds and runs correctly when served via nginx in Docker
+- ✅ Successfully containerized and pushed to Gitea registry
+- ✅ 24+ hour production build issue resolved
+- ✅ Stable production deployment achieved
 
 ## Development Commands
 
