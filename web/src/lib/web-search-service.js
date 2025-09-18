@@ -9,10 +9,12 @@ class WebSearchService {
     this.searchCache = new Map();
     this.fetchCache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
-    
+
     // SearXNG instances - local first, then public fallbacks
+    // Use configuration from config.js or default to Docker internal network
+    const searxngUrl = window.APP_CONFIG?.SEARXNG_URL || window.SEARXNG_URL || 'http://searxng:8080';
     this.searxInstances = [
-      'http://localhost:8888',  // Local Docker instance (no CORS proxy needed)
+      searxngUrl,  // Local Docker instance (no CORS proxy needed)
       'https://search.bus-hit.me',
       'https://searx.be',
       'https://searx.tiekoetter.com',

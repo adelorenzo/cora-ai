@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Development service
   cora-dev:
@@ -12,6 +10,7 @@ services:
       - ./web:/app/web:ro
     environment:
       - NODE_ENV=development
+      - SEARXNG_URL=http://searxng:8080
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
@@ -27,6 +26,7 @@ services:
       - "8001:8000"
     environment:
       - NODE_ENV=production
+      - SEARXNG_URL=http://searxng:8080
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
@@ -44,6 +44,7 @@ services:
       - "8002:8000"
     environment:
       - NODE_ENV=production
+      - SEARXNG_URL=http://searxng:8080
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
@@ -54,6 +55,29 @@ services:
     profiles:
       - registry
 
+  # SearXNG service - internal only, no ports exposed
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    # No ports exposed - only accessible via Docker network
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-ultrasecretkey}
+    volumes:
+      - searxng-data:/etc/searxng
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - default
+
 networks:
   default:
     name: cora-network
+
+volumes:
+  searxng-data:

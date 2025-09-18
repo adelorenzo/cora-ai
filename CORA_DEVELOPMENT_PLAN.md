@@ -1,14 +1,14 @@
 # Cora - AI Assistant Development Plan
 **Project Codename:** Cora
 **Version:** 2.0.0 (from WebLLM v1.1.0)
-**Status:** IN PROGRESS - Sprint 6 Loading Optimizations
-**Date:** September 12, 2025
-**Last Updated:** January 16, 2025  
+**Status:** IN PROGRESS - Sprint 9 RAG Implementation
+**Date:** September 12, 2024
+**Last Updated:** January 18, 2025  
 
 ---
 
 ## Executive Summary
-Transform the current WebLLM chat application into **Cora**, an advanced AI assistant featuring RAG capabilities, intelligent web integration, customizable AI agents, and a curated model selection. This document outlines the approved development plan and Claude Agent team structure for implementation.
+Transform the current WebLLM chat application into **Cora**, an advanced AI assistant featuring RAG capabilities, intelligent web integration, customizable AI agents, and a curated model selection. Now containerized with microservices architecture for enhanced privacy and scalability. This document outlines the approved development plan and Claude Agent team structure for implementation.
 
 ---
 
@@ -152,61 +152,164 @@ Transform the current WebLLM chat application into **Cora**, an advanced AI assi
 
 ---
 
-### Sprint 6: Performance & Stability 🚀 IN PROGRESS
-**Start Date:** December 13, 2025
-**End Date:** January 16, 2025
+### Sprint 6: Performance & Stability ✅ COMPLETED
+**Start Date:** December 13, 2024
+**End Date:** January 2, 2025
 
 #### Deliverables:
 - [x] Performance optimizations
 - [x] Memory usage optimization
 - [x] Code cleanup and refactoring
 - [x] Removed problematic RAG implementation (causing crashes)
-- [ ] **Loading time improvements** - IN PROGRESS
-- [ ] Mobile app packaging (PWA improvements) - moved to Sprint 7
 
 #### Success Metrics:
 - ✅ App stability restored (no more crashes)
 - ✅ Memory usage reduced
 - ✅ Cleaner codebase without experimental features
-- Mobile PWA score >95 (deferred)
-- Initial load time <2s (deferred)
 
 #### Important Notes:
 - RAG feature was removed due to persistent browser memory crashes
-- RAG implementation moved to Sprint 7 for complete redesign
+- RAG implementation moved to Sprint 9 for complete redesign
 - Focus shifted to app stability and performance
+
+---
+
+### Sprint 7: Containerization ✅ COMPLETED
+**Start Date:** January 3, 2025
+**End Date:** January 10, 2025
+
+#### Deliverables:
+- [x] Docker containerization
+- [x] Multi-stage build optimization
+- [x] nginx serving static files
+- [x] Docker Compose setup
+- [x] Health checks implementation
+
+#### Success Metrics:
+- ✅ Docker image size optimized
+- ✅ Container starts in <5s
+- ✅ Health checks passing
+
+---
+
+### Sprint 8: Microservices Architecture ✅ COMPLETED
+**Start Date:** January 11, 2025
+**End Date:** January 17, 2025
+
+#### Deliverables:
+- [x] SearXNG integration as separate service
+- [x] Docker Compose multi-service orchestration
+- [x] Internal network configuration (privacy-first)
+- [x] Runtime configuration injection
+- [x] Service documentation
+- [x] CI/CD with Gitea Actions
+
+#### Success Metrics:
+- ✅ SearXNG running internally (no exposed ports)
+- ✅ Services communicate via Docker network
+- ✅ Zero external data leakage
+- ✅ Automated builds working
 
 ---
 
 ### Future Sprints (Planned)
 
-### Sprint 7: RAG Redesign & Advanced Features 🚀 NEXT (4 weeks)
-- [ ] **RAG System Redesign** (Priority 1)
-  - [ ] New lightweight embedding approach
-  - [ ] Efficient vector storage without memory explosions
-  - [ ] Streaming document processing
-  - [ ] Better memory management
-  - [ ] Progressive indexing
-- [ ] PWA improvements and mobile optimization
-- [ ] Loading time improvements
-- [ ] Voice input/output capabilities
-- [ ] Advanced prompt templates library
-- [ ] Code execution sandbox (optional)
-- [ ] Image generation integration (if available)
-- [ ] Collaborative chat sharing
-- [ ] Multi-user support with profiles
-- [ ] API endpoint exposure
-- [ ] Advanced security features
+### Sprint 9: RAG Implementation with txtai 🚀 NEXT (3 weeks)
+**Start Date:** January 18, 2025
+**End Date:** February 7, 2025
 
-### Sprint 8: Enterprise & Scaling (3 weeks)
+#### Objectives:
+- Implement privacy-first RAG using containerized txtai service
+- Use IndexedDB + PouchDB for browser storage
+- Maintain complete data privacy
+
+#### Deliverables:
+- [ ] **txtai Microservice Integration**
+  - [ ] Add txtai to Docker Compose stack
+  - [ ] Configure for internal-only access
+  - [ ] Setup document processing endpoints
+  - [ ] Implement embedding generation API
+- [ ] **Browser Storage Layer**
+  - [ ] PouchDB integration for document metadata
+  - [ ] IndexedDB for vector storage
+  - [ ] Encryption at rest (Web Crypto API)
+  - [ ] Storage quota management
+- [ ] **Document Processing Pipeline**
+  - [ ] Upload manager with chunking
+  - [ ] Support PDF, DOCX, XLSX, TXT, MD
+  - [ ] Progress tracking and status
+  - [ ] Error handling and retry logic
+- [ ] **Vector Search Implementation**
+  - [ ] Client-side cosine similarity search
+  - [ ] Top-k retrieval optimization
+  - [ ] Hybrid search with SearXNG
+  - [ ] Result ranking and scoring
+- [ ] **UI Components**
+  - [ ] Document upload interface
+  - [ ] Collection management
+  - [ ] RAG toggle per conversation
+  - [ ] Source attribution display
+
+#### Success Metrics:
+- Document processing <5s for typical PDF
+- Vector search latency <100ms
+- Storage efficiency: 10MB per 1000 pages
+- Zero external data transmission
+
+---
+
+### Sprint 10: Advanced Features & UX (3 weeks)
+**Start Date:** February 8, 2025
+**End Date:** February 28, 2025
+
+#### Deliverables:
+- [ ] **PWA Improvements**
+  - [ ] Loading time optimizations (<2s)
+  - [ ] Mobile-first responsive design
+  - [ ] Offline functionality enhancement
+  - [ ] App install prompts
+- [ ] **Voice Capabilities**
+  - [ ] Voice input (Web Speech API)
+  - [ ] Voice output (TTS)
+  - [ ] Voice commands
+- [ ] **Advanced Templates**
+  - [ ] Prompt template library
+  - [ ] Custom template builder
+  - [ ] Template sharing
+- [ ] **Collaboration Features**
+  - [ ] Chat sharing via links
+  - [ ] Export conversations as markdown/PDF
+  - [ ] Multi-user profiles
+
+---
+
+### Sprint 11: Enterprise Features (3 weeks)
+**Start Date:** March 1, 2025
+**End Date:** March 21, 2025
+
+#### Deliverables:
 - [ ] Admin dashboard
 - [ ] Usage analytics and metrics
 - [ ] Batch processing capabilities
+- [ ] API endpoint exposure
+- [ ] Advanced security features
+- [ ] Multi-tenant support
+- [ ] SSO integration options
+
+---
+
+### Sprint 12: Community Platform (3 weeks)
+**Start Date:** March 22, 2025
+**End Date:** April 11, 2025
+
+#### Deliverables:
 - [ ] Agent sharing platform
 - [ ] Community agents repository
 - [ ] Agent rating and reviews
 - [ ] Agent composition and chaining
 - [ ] Agent marketplace UI
+- [ ] Template marketplace
+- [ ] Community forums integration
 
 ---
 
@@ -398,39 +501,41 @@ main                 # Production-ready code
 
 ## Project Timeline
 
-**Total Duration:** Extended to 16+ weeks
-**Start Date:** September 12, 2025
-**Sprints Completed:** 6 of 8+ planned
-**Current Sprint:** Sprint 7 (Advanced Features)
+**Total Duration:** Extended to 30 weeks
+**Start Date:** September 12, 2024
+**Sprints Completed:** 8 of 12 planned
+**Current Sprint:** Sprint 9 (RAG Implementation)
 **Version:** Cora 2.0.0
-**Estimated Completion:** Q1 2026  
+**Estimated Completion:** April 2025  
 
 ---
 
 ## Progress Summary
 
-### Completed Sprints (6/8)
+### Completed Sprints (8/12)
 - ✅ **Sprint 1:** RAG Implementation - Initial implementation (later removed)
 - ✅ **Sprint 2:** Model Curation & Personas - 5 optimized models, 5 personas
 - ✅ **Sprint 3:** Web Search - SearXNG integration with function calling
 - ✅ **Sprint 4:** Settings Persistence - Complete localStorage implementation
 - ✅ **Sprint 5:** Chat Management - Multi-conversation support with export/import
 - ✅ **Sprint 6:** Performance & Stability - Removed problematic RAG, improved stability
+- ✅ **Sprint 7:** Containerization - Docker, nginx, health checks
+- ✅ **Sprint 8:** Microservices Architecture - SearXNG integration, CI/CD
 
 ### Current Status
-- **Active Sprint:** Sprint 7 - RAG Redesign & Advanced Features
-- **Completion Rate:** 75% (6 of 8 planned sprints)
-- **Key Achievement:** App stability restored, clean codebase
-- **Next Focus:** Complete RAG redesign with proper memory management, PWA improvements
+- **Active Sprint:** Sprint 9 - RAG Implementation with txtai
+- **Completion Rate:** 67% (8 of 12 planned sprints)
+- **Key Achievement:** Containerized microservices architecture with privacy-first design
+- **Next Focus:** RAG implementation using txtai + IndexedDB/PouchDB
 
 ---
 
 ## Approval
 
 **Original Plan Status:** ✅ APPROVED
-**Current Status:** 🚀 EXECUTING - Sprint 7
+**Current Status:** 🚀 EXECUTING - Sprint 9
 **Progress:** ON TRACK
 
 ---
 
-*This document represents the official development plan for Cora. Last updated after Sprint 6 completion - RAG removed due to stability issues, moved to Sprint 7 for redesign.*
+*This document represents the official development plan for Cora. Last updated after Sprint 8 completion - Successfully containerized with microservices architecture. Sprint 9 focuses on RAG implementation using txtai with privacy-first design.*
