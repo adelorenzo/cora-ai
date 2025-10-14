@@ -15,8 +15,11 @@ This is a modern React-based browser LLM application that runs entirely client-s
   - Browser mode: localStorage
   - Desktop mode: file system via Tauri APIs
   - Conversations and settings persist across restarts
-- ⏳ App icon update pending
-- ⏳ Native menu bar and keyboard shortcuts pending
+- ✅ Native menu bar and keyboard shortcuts implemented
+  - File, Edit, View, Window (macOS), Help menus
+  - Platform-specific keyboard shortcuts (Cmd+N, Cmd+K, etc.)
+  - Tauri event system integration with React frontend
+- ⏳ App icon update pending (macOS cache issue)
 
 **Sprint 9 Complete**:
 - ✅ RAG (Library) feature fully functional with txtai backend
@@ -257,15 +260,13 @@ Located in `src-tauri/tauri.conf.json`:
 ### Known Limitations (Desktop MVP)
 
 1. **No RAG/Library Feature**: Requires txtai backend - deferred to v1.1
-2. **App Icon**: Default Tauri icon - custom icon update pending
-3. **No Native Menus**: File/Edit/View menus not implemented yet
-4. **No Keyboard Shortcuts**: Native shortcuts pending
+2. **App Icon**: Default Tauri icon - custom icon update pending (macOS cache issue)
 
 ### Roadmap (Post-MVP)
 
 - [ ] Custom app icon with Cora branding
-- [ ] Native menu bar (File, Edit, View, Help)
-- [ ] Keyboard shortcuts (Cmd+N for new chat, etc.)
+- [x] Native menu bar (File, Edit, View, Help)
+- [x] Keyboard shortcuts (Cmd+N for new chat, etc.)
 - [ ] RAG feature with local embeddings (v1.1)
 - [ ] Auto-update functionality
 - [ ] System tray integration
