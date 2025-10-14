@@ -10,6 +10,9 @@ class WebSearchService {
     this.fetchCache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
 
+    // Detect if running in Tauri (desktop app)
+    this.isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+
     // SearXNG instances - local first, then public fallbacks
     // Use configuration from config.js or default to Docker internal network
     const searxngUrl = window.APP_CONFIG?.SEARXNG_URL || window.SEARXNG_URL || 'http://searxng:8080';
@@ -21,13 +24,13 @@ class WebSearchService {
       'https://search.mdosch.de'
     ];
     this.currentInstanceIndex = 0;
-    
+
     // Alternative: Use Wikipedia API for factual searches
     this.wikipediaAPI = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
-    
+
     // Fallback to DuckDuckGo Instant Answer API
     this.duckduckgoAPI = 'https://api.duckduckgo.com/';
-    
+
     // CORS proxy for fetching web content
     this.corsProxy = 'https://corsproxy.io/?';
   }
@@ -37,10 +40,10 @@ class WebSearchService {
    */
   async initialize() {
     if (this.initialized) return;
-    
-    console.log('[WebSearch] Initializing web search service...');
+
+    console.log(`[WebSearch] Initializing web search service... (Tauri mode: ${this.isTauri})`);
     this.initialized = true;
-    
+
     // Clean up old cache entries periodically
     setInterval(() => this.cleanCache(), this.cacheTimeout);
   }
@@ -53,7 +56,7 @@ class WebSearchService {
    */
   async search(query, options = {}) {
     if (!query) throw new Error('Search query is required');
-    
+
     // Check cache first
     const cacheKey = `search_${query}_${JSON.stringify(options)}`;
     if (this.searchCache.has(cacheKey)) {
@@ -63,9 +66,22 @@ class WebSearchService {
         return cached.data;
       }
     }
-    
-    console.log(`[WebSearch] Searching for: "${query}"`);
-    
+
+    console.log(`[WebSearch] Searching for: "${query}" (Tauri mode: ${this.isTauri})`);
+
+    // In Tauri mode, skip SearXNG and use DuckDuckGo directly (no CORS issues)
+    if (this.isTauri) {
+      console.log('[WebSearch] Using DuckDuckGo directly in Tauri mode');
+      const ddgResults = await this.searchDuckDuckGo(query);
+      if (ddgResults) {
+        this.searchCache.set(cacheKey, {
+          data: ddgResults,
+          timestamp: Date.now()
+        });
+        return ddgResults;
+      }
+    }
+
     // Try Wikipedia for factual queries
     if (this.isFactualQuery(query)) {
       const wikiResults = await this.searchWikipedia(query);
@@ -78,8 +94,8 @@ class WebSearchService {
         return wikiResults;
       }
     }
-    
-    // Try SearXNG 
+
+    // Try SearXNG
     const searxResults = await this.searchWithSearXNG(query, options);
     if (searxResults) {
       // Cache results
@@ -89,9 +105,26 @@ class WebSearchService {
       });
       return searxResults;
     }
-    
+
     // Fallback to DuckDuckGo
     console.log('[WebSearch] Falling back to DuckDuckGo API');
+    const ddgResults = await this.searchDuckDuckGo(query);
+    if (ddgResults) {
+      this.searchCache.set(cacheKey, {
+        data: ddgResults,
+        timestamp: Date.now()
+      });
+      return ddgResults;
+    }
+
+    throw new Error('All search methods failed');
+  }
+
+  /**
+   * Search using DuckDuckGo API directly
+   * @private
+   */
+  async searchDuckDuckGo(query) {
     try {
       const params = new URLSearchParams({
         q: query,
@@ -99,33 +132,28 @@ class WebSearchService {
         no_html: '1',
         skip_disambig: '1'
       });
-      
+
       const apiUrl = `${this.duckduckgoAPI}?${params}`;
-      const proxyUrl = `${this.corsProxy}${apiUrl}`;
-      
-      const response = await fetch(proxyUrl);
-      
+      // In Tauri, no CORS proxy needed
+      const fetchUrl = this.isTauri ? apiUrl : `${this.corsProxy}${apiUrl}`;
+
+      console.log(`[WebSearch] Fetching from: ${fetchUrl}`);
+      const response = await fetch(fetchUrl);
+
       if (!response.ok) {
         console.error(`[WebSearch] HTTP Error: ${response.status} ${response.statusText}`);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       console.log('[WebSearch] DuckDuckGo response received');
-      
+
       // Process and format results
       const results = this.formatSearchResults(data, query);
-      
-      // Cache results
-      this.searchCache.set(cacheKey, {
-        data: results,
-        timestamp: Date.now()
-      });
-      
       return results;
     } catch (error) {
-      console.error('[WebSearch] Search failed:', error);
-      throw new Error(`Search failed: ${error.message}`);
+      console.error('[WebSearch] DuckDuckGo search failed:', error);
+      return null;
     }
   }
   

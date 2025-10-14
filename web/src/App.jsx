@@ -45,10 +45,14 @@ const DocumentUpload = React.lazy(() => import('./components/DocumentUpload'));
 function App() {
   const { currentTheme } = useTheme();
   const { activePersonaData } = usePersona();
-  
+
+  // Detect Tauri desktop mode
+  const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+
   // Debug logging on component mount
   useEffect(() => {
     console.log('[App] Component mounted');
+    console.log('[App] Tauri mode:', isTauri);
     console.log('[App] Initial theme:', currentTheme);
     console.log('[App] Active persona:', activePersonaData?.name);
     console.log('[App] Active conversation:', activeConversation?.title);
@@ -56,7 +60,8 @@ function App() {
       userAgent: navigator.userAgent,
       webGPU: 'gpu' in navigator,
       serviceWorker: 'serviceWorker' in navigator,
-      indexedDB: 'indexedDB' in window
+      indexedDB: 'indexedDB' in window,
+      tauri: isTauri
     });
   }, []);
 
@@ -322,16 +327,16 @@ function App() {
     performanceOptimizer.trackInteraction('app-start');
     console.log('[App] Performance tracking started');
 
-    // Initialize RAG service
+    // Initialize Library service
     ragService.initialize().then(() => {
-      console.log('[App] RAG service initialized');
+      console.log('[App] Library service initialized');
       // Load existing documents
       ragService.getDocuments().then(docs => {
         setRagDocuments(docs);
         console.log(`[App] Loaded ${docs.length} documents`);
       });
     }).catch(error => {
-      console.warn('[App] RAG service initialization failed:', error);
+      console.warn('[App] Library service initialization failed:', error);
     });
 
     // Start performance monitoring
@@ -475,7 +480,7 @@ function App() {
     // Add user message to conversation
     addMessageToConversation(userMessage);
     
-    // Check for RAG context if enabled
+    // Check for Library context if enabled
     let ragContext = '';
     if (ragEnabled && ragDocuments.length > 0) {
       try {
@@ -490,7 +495,7 @@ function App() {
             ).join('\n\n');
         }
       } catch (error) {
-        console.error('[App] RAG search failed:', error);
+        console.error('[App] Library search failed:', error);
       }
     }
 
@@ -577,7 +582,7 @@ function App() {
         useManualFunctionCalling
       );
       
-      // Add web context and RAG context if available
+      // Add web context and Library context if available
       let enhancedUserMessage = userMessage;
       if (webContext || ragContext) {
         enhancedUserMessage = {
@@ -864,32 +869,37 @@ function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Document Upload */}
-            <React.Suspense fallback={
-              <Button variant="outline" size="icon" disabled>
-                <Loader2 className="h-4 w-4 animate-spin" />
-              </Button>
-            }>
-              <DocumentUpload
-                onDocumentsChange={(docs) => {
-                  setRagDocuments(docs);
-                  console.log(`[App] Documents updated: ${docs.length}`);
-                }}
-              />
-            </React.Suspense>
+            {/* RAG UI - Only show in browser mode, hide in Tauri desktop */}
+            {!isTauri && (
+              <>
+                {/* Document Upload */}
+                <React.Suspense fallback={
+                  <Button variant="outline" size="icon" disabled>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </Button>
+                }>
+                  <DocumentUpload
+                    onDocumentsChange={(docs) => {
+                      setRagDocuments(docs);
+                      console.log(`[App] Documents updated: ${docs.length}`);
+                    }}
+                  />
+                </React.Suspense>
 
-            {/* RAG Toggle */}
-            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-secondary/50">
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
-              <Switch
-                checked={ragEnabled}
-                onCheckedChange={setRagEnabled}
-                className="data-[state=checked]:bg-primary"
-              />
-              <span className="text-xs font-medium text-muted-foreground">
-                RAG {ragDocuments.length > 0 ? `(${ragDocuments.length})` : ''}
-              </span>
-            </div>
+                {/* Library Toggle */}
+                <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-secondary/50">
+                  <BookOpen className="h-4 w-4 text-muted-foreground" />
+                  <Switch
+                    checked={ragEnabled}
+                    onCheckedChange={setRagEnabled}
+                    className="data-[state=checked]:bg-primary"
+                  />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Library {ragDocuments.length > 0 ? `(${ragDocuments.length})` : ''}
+                  </span>
+                </div>
+              </>
+            )}
 
             <React.Suspense fallback={<PersonaSelectorSkeleton />}>
               <PersonaSelector />
