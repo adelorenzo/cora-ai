@@ -81,6 +81,54 @@ function App() {
     setTimeout(loadPerformanceMonitor, 2000);
   }, []);
 
+  // Listen for Tauri menu events (desktop only)
+  useEffect(() => {
+    if (!isTauri) return;
+
+    const setupMenuListeners = async () => {
+      try {
+        const { listen } = await import('https://esm.sh/@tauri-apps/api/event');
+
+        // New Chat
+        const unlistenNewChat = await listen('menu:new-chat', () => {
+          console.log('[App] Menu: New chat requested');
+          conversationManager.createConversation('New Chat');
+        });
+
+        // Clear Chat
+        const unlistenClearChat = await listen('menu:clear-chat', () => {
+          console.log('[App] Menu: Clear chat requested');
+          clearChat();
+        });
+
+        // Settings
+        const unlistenSettings = await listen('menu:settings', () => {
+          console.log('[App] Menu: Settings requested');
+          setSettingsOpen(true);
+        });
+
+        // About
+        const unlistenAbout = await listen('menu:about', () => {
+          console.log('[App] Menu: About requested');
+          // TODO: Show about dialog
+          alert('Cora AI v1.0\n\n100% local AI assistant running on your desktop.\nNo cloud, no API keys, complete privacy.');
+        });
+
+        // Cleanup listeners on unmount
+        return () => {
+          unlistenNewChat();
+          unlistenClearChat();
+          unlistenSettings();
+          unlistenAbout();
+        };
+      } catch (error) {
+        console.error('[App] Failed to setup menu listeners:', error);
+      }
+    };
+
+    setupMenuListeners();
+  }, [isTauri]);
+
   const [activeConversation, setActiveConversation] = useState(() => conversationManager.getActiveConversation());
   const [conversations, setConversations] = useState(() => conversationManager.getAllConversations());
   const messages = activeConversation?.messages || [];
