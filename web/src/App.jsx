@@ -33,6 +33,7 @@ import conversationManager from './lib/conversation-manager';
 import { exportConversation } from './lib/export-utils';
 import ExportDropdown from './components/ExportDropdown';
 import AboutModal from './components/AboutModal';
+import WelcomeModal from './components/WelcomeModal';
 import { cn } from './lib/utils';
 import { SkipToContent } from './components/AccessibilityProvider';
 import ragService from './lib/rag-service';
@@ -99,6 +100,9 @@ function App() {
   const [responseHistory, setResponseHistory] = useState({}); // Store previous responses by message index
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(() => {
+    return !localStorage.getItem('cora-welcome-shown');
+  });
   const [performanceMonitor, setPerformanceMonitor] = useState(null);
   const [ragEnabled, setRagEnabled] = useState(false);
   const [ragDocuments, setRagDocuments] = useState([]);
@@ -1236,6 +1240,12 @@ function App() {
         <AboutModal
           isOpen={showAboutModal}
           onClose={() => setShowAboutModal(false)}
+        />
+
+        {/* Welcome Modal (first run) */}
+        <WelcomeModal
+          isOpen={showWelcomeModal}
+          onClose={() => setShowWelcomeModal(false)}
         />
 
       </div>
