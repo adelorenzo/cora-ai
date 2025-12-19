@@ -1,7 +1,46 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Zap, Brain } from 'lucide-react';
+import { Sparkles, Zap, Brain, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export function Hero() {
+  const [browserStatus, setBrowserStatus] = useState({ checked: false, compatible: false, message: '' });
+
+  useEffect(() => {
+    const checkWebGPU = async () => {
+      if ('gpu' in navigator) {
+        try {
+          const adapter = await navigator.gpu.requestAdapter();
+          if (adapter) {
+            setBrowserStatus({
+              checked: true,
+              compatible: true,
+              message: 'Your browser is ready for Cora AI'
+            });
+          } else {
+            setBrowserStatus({
+              checked: true,
+              compatible: false,
+              message: 'WebGPU not available - WASM fallback will be used'
+            });
+          }
+        } catch {
+          setBrowserStatus({
+            checked: true,
+            compatible: false,
+            message: 'WebGPU not available - WASM fallback will be used'
+          });
+        }
+      } else {
+        setBrowserStatus({
+          checked: true,
+          compatible: false,
+          message: 'Try Chrome, Edge, or Safari for best performance'
+        });
+      }
+    };
+    checkWebGPU();
+  }, []);
+
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
       {/* Animated Background */}
@@ -144,7 +183,7 @@ export function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.5 }}
           className="flex flex-col sm:flex-row items-center justify-center"
-          style={{ gap: '1.25rem', marginBottom: '5rem' }}
+          style={{ gap: '1.25rem', marginBottom: '2rem' }}
         >
           <a
             href="https://cora-app.oe74.net"
@@ -163,6 +202,37 @@ export function Hero() {
             Learn More
           </a>
         </motion.div>
+
+        {/* Browser Compatibility Indicator */}
+        {browserStatus.checked && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.6 }}
+            className="flex items-center justify-center gap-2 mb-12"
+          >
+            <div
+              className={`flex items-center gap-2 px-4 py-2 rounded-full ${
+                browserStatus.compatible
+                  ? 'bg-emerald-500/10 border border-emerald-500/30'
+                  : 'bg-amber-500/10 border border-amber-500/30'
+              }`}
+            >
+              {browserStatus.compatible ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-amber-400" />
+              )}
+              <span
+                className={`text-sm font-medium ${
+                  browserStatus.compatible ? 'text-emerald-400' : 'text-amber-400'
+                }`}
+              >
+                {browserStatus.message}
+              </span>
+            </div>
+          </motion.div>
+        )}
 
         {/* Tech Stack Pills */}
         <motion.div
