@@ -228,7 +228,8 @@ export function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.6 }}
-            className="flex items-center justify-center gap-2 mb-16"
+            className="flex items-center justify-center gap-2"
+            style={{ marginTop: '1.5rem', marginBottom: '3rem' }}
           >
             <div
               className={`flex items-center gap-2 px-4 py-2 rounded-full ${
