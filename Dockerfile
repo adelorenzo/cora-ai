@@ -36,7 +36,6 @@ types {
     image/x-icon                          ico;
     font/woff                             woff;
     font/woff2                            woff2;
-    application/font-woff                 woff;
     application/x-font-ttf                ttf;
     font/opentype                         otf;
     application/octet-stream              bin exe dll;

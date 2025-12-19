@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
+# Install CPU-only PyTorch first (prevents huge CUDA download)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 # Install txtai and dependencies
 RUN pip install --no-cache-dir \
     txtai \
