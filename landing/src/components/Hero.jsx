@@ -1,12 +1,27 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Zap, Brain, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Sparkles, Zap, Brain, CheckCircle2, AlertCircle, XCircle, Smartphone } from 'lucide-react';
 
 export function Hero() {
-  const [browserStatus, setBrowserStatus] = useState({ checked: false, compatible: false, message: '' });
+  const [browserStatus, setBrowserStatus] = useState({ checked: false, compatible: false, level: 'unknown', message: '' });
 
   useEffect(() => {
-    const checkWebGPU = async () => {
+    const checkCompatibility = async () => {
+      // Check if mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        || (navigator.maxTouchPoints > 0 && window.innerWidth < 1024);
+
+      if (isMobile) {
+        setBrowserStatus({
+          checked: true,
+          compatible: false,
+          level: 'incompatible',
+          message: 'Desktop computer required - mobile devices lack sufficient memory'
+        });
+        return;
+      }
+
+      // Check WebGPU on desktop
       if ('gpu' in navigator) {
         try {
           const adapter = await navigator.gpu.requestAdapter();
@@ -14,31 +29,35 @@ export function Hero() {
             setBrowserStatus({
               checked: true,
               compatible: true,
+              level: 'optimal',
               message: 'Your browser is ready for Cora AI'
             });
           } else {
             setBrowserStatus({
               checked: true,
-              compatible: false,
+              compatible: true,
+              level: 'fallback',
               message: 'WebGPU not available - WASM fallback will be used'
             });
           }
         } catch {
           setBrowserStatus({
             checked: true,
-            compatible: false,
+            compatible: true,
+            level: 'fallback',
             message: 'WebGPU not available - WASM fallback will be used'
           });
         }
       } else {
         setBrowserStatus({
           checked: true,
-          compatible: false,
-          message: 'Try Chrome, Edge, or Safari for best performance'
+          compatible: true,
+          level: 'fallback',
+          message: 'Try Chrome or Edge for best performance'
         });
       }
     };
-    checkWebGPU();
+    checkCompatibility();
   }, []);
 
   return (
@@ -213,19 +232,27 @@ export function Hero() {
           >
             <div
               className={`flex items-center gap-2 px-4 py-2 rounded-full ${
-                browserStatus.compatible
+                browserStatus.level === 'optimal'
                   ? 'bg-emerald-500/10 border border-emerald-500/30'
-                  : 'bg-amber-500/10 border border-amber-500/30'
+                  : browserStatus.level === 'fallback'
+                  ? 'bg-amber-500/10 border border-amber-500/30'
+                  : 'bg-red-500/10 border border-red-500/30'
               }`}
             >
-              {browserStatus.compatible ? (
+              {browserStatus.level === 'optimal' ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              ) : (
+              ) : browserStatus.level === 'fallback' ? (
                 <AlertCircle className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Smartphone className="w-4 h-4 text-red-400" />
               )}
               <span
                 className={`text-sm font-medium ${
-                  browserStatus.compatible ? 'text-emerald-400' : 'text-amber-400'
+                  browserStatus.level === 'optimal'
+                    ? 'text-emerald-400'
+                    : browserStatus.level === 'fallback'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
                 }`}
               >
                 {browserStatus.message}
