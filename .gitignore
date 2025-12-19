@@ -13,3 +13,12 @@
 # Logs
 *.log
 .env
+
+# Markdown files
+*.md
+
+# Shell scripts
+*.sh
+
+# Images
+cora.png
