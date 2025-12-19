@@ -19,8 +19,9 @@
 !README.md
 !CHANGELOG.md
 
-# Shell scripts
+# Shell scripts (except docker-entrypoint.sh needed for container)
 *.sh
+!docker-entrypoint.sh
 
 # Images
 cora.png
