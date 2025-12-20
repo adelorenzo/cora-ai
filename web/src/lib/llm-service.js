@@ -1,6 +1,4 @@
 const WEBLLM_URL = "https://esm.run/@mlc-ai/web-llm@0.2.79";
-const WLLAMA_URL = "https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.5/esm/wasm-from-cdn.js";
-const WLLAMA_FALLBACK_URL = "https://unpkg.com/@wllama/wllama@2.3.5/esm/wasm-from-cdn.js";
 
 import { CURATED_MODELS, RECOMMENDED_MODELS } from '../config/models.js';
 import modelOptimizer from './model-optimizer.js';
@@ -19,10 +17,8 @@ class LLMService {
    * @returns {Promise<string>} 'webgpu' or 'wasm'
    */
   async detectRuntime() {
-    // Firefox often has CORS issues with CDN imports, force WASM fallback
-    const isFirefox = navigator.userAgent.toLowerCase().includes('firefox');
-
-    if (!isFirefox && navigator.gpu) {
+    // Check WebGPU support for all browsers
+    if (navigator.gpu) {
       try {
         const adapter = await navigator.gpu.requestAdapter();
         if (adapter) {
@@ -33,12 +29,6 @@ class LLMService {
       }
     }
     return "wasm";
-  }
-
-  // Check if we should use local WASM package instead of CDN
-  shouldUseLocalWasm() {
-    const isFirefox = navigator.userAgent.toLowerCase().includes('firefox');
-    return isFirefox;
   }
 
   /**
@@ -277,47 +267,14 @@ class LLMService {
 
   async initWASM() {
     try {
-      // For Firefox, skip WASM entirely and provide a working stub
-      if (this.shouldUseLocalWasm()) {
-        console.log('Firefox detected - providing WASM stub for compatibility');
-
-        if (this.initCallback) {
-          this.initCallback("Firefox compatibility mode - limited functionality");
-        }
-
-        // Create a minimal working stub for Firefox
-        this.engine = {
-          complete: async (prompt) => {
-            return `I apologize, but Firefox has limitations with WebAssembly modules due to CORS restrictions. Please try using Chrome or Edge for the full AI experience. Your message was: "${prompt}"`;
-          }
-        };
-        this.currentModel = "firefox-compatibility";
-        return { runtime: "wasm", models: [], selectedModel: "firefox-compatibility" };
-      }
-
-      // For other browsers, try CDN approach
-      let wllamaModule;
-      try {
-        // Try primary CDN first
-        wllamaModule = await import(/* @vite-ignore */ WLLAMA_URL);
-      } catch (error) {
-        console.warn('Primary WASM CDN failed, trying fallback:', error);
-        try {
-          // Try fallback CDN
-          wllamaModule = await import(/* @vite-ignore */ WLLAMA_FALLBACK_URL);
-        } catch (fallbackError) {
-          console.error('Both WASM CDNs failed:', fallbackError);
-          throw new Error('WASM module unavailable - both CDNs failed');
-        }
-      }
-
+      // Use local wllama package - works on all browsers including Firefox
       const { startWasmFallback } = await import("../../fallback/wllama.js");
 
       if (this.initCallback) {
         this.initCallback("Loading WASM model...");
       }
 
-      this.engine = await startWasmFallback({ WasmFromCDN: wllamaModule.default });
+      this.engine = await startWasmFallback();
       this.currentModel = "stories260K";
       return { runtime: "wasm", models: [], selectedModel: "stories260K" };
     } catch (error) {
