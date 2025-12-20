@@ -265,18 +265,23 @@ class LLMService {
     }
   }
 
-  async initWASM() {
+  async initWASM(modelId = null) {
     try {
       // Use local wllama package - works on all browsers including Firefox
-      const { startWasmFallback } = await import("../../fallback/wllama.js");
+      const { startWasmFallback, WASM_MODELS } = await import("../../fallback/wllama.js");
 
       if (this.initCallback) {
-        this.initCallback("Loading WASM model...");
+        this.initCallback("Initializing WASM runtime...");
       }
 
-      this.engine = await startWasmFallback();
-      this.currentModel = "stories260K";
-      return { runtime: "wasm", models: [], selectedModel: "stories260K" };
+      this.engine = await startWasmFallback(modelId, this.initCallback);
+      this.currentModel = this.engine.modelId;
+
+      return {
+        runtime: "wasm",
+        models: WASM_MODELS,
+        selectedModel: this.engine.modelId
+      };
     } catch (error) {
       console.error('WASM initialization failed:', error);
       // Return a minimal stub so the app doesn't crash
@@ -294,6 +299,15 @@ class LLMService {
         error: "WASM initialization failed. The app will run without LLM capabilities."
       };
     }
+  }
+
+  /**
+   * Get available WASM models
+   * @returns {Promise<Array>} Array of WASM model configurations
+   */
+  async getWasmModels() {
+    const { WASM_MODELS } = await import("../../fallback/wllama.js");
+    return WASM_MODELS;
   }
 
   async *generateStream(messages, options = {}) {
@@ -443,41 +457,53 @@ class LLMService {
    * @returns {Promise<Object>} Result with runtime, models, and selectedModel
    */
   async switchModel(model) {
-    if (this.runtime === "webgpu" && model !== this.currentModel) {
+    if (model === this.currentModel) {
+      return { runtime: this.runtime, models: [], selectedModel: this.currentModel };
+    }
+
+    if (this.runtime === "webgpu") {
       try {
-        // Store current model as fallback
-        const previousModel = this.currentModel;
-        const previousEngine = this.engine;
-        
         // Attempt to unload current model
         if (this.engine?.unload) {
           await this.engine.unload();
         }
-        
+
         // Try to load new model
         const result = await this.initWebLLM(model);
-        
-        // Clear memory if switch was successful
+
         if (result.selectedModel !== model && result.recoveryUsed) {
           console.warn(`Model switch recovered with fallback: ${result.selectedModel}`);
         }
-        
+
         return result;
       } catch (error) {
         console.error('Model switch failed:', error);
-        
-        // Attempt to restore previous model
+
         if (this.currentModel !== model) {
           console.log('Model switch successful despite error');
           return { runtime: this.runtime, models: [], selectedModel: this.currentModel };
         }
-        
+
         // If restoration failed, try WASM fallback
         console.error('Unable to restore previous model, falling back to WASM');
         this.runtime = "wasm";
         return await this.initWASM();
       }
+    } else if (this.runtime === "wasm") {
+      try {
+        // Unload current WASM model
+        if (this.engine?.unload) {
+          await this.engine.unload();
+        }
+
+        // Load new WASM model
+        return await this.initWASM(model);
+      } catch (error) {
+        console.error('WASM model switch failed:', error);
+        return { runtime: this.runtime, models: [], selectedModel: this.currentModel };
+      }
     }
+
     return { runtime: this.runtime, models: [], selectedModel: this.currentModel };
   }
 

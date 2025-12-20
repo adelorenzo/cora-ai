@@ -2,17 +2,21 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Cpu, Zap, Brain, Sparkles, ChevronDown } from 'lucide-react';
 import llmService from '../lib/llm-service.js';
 import { CURATED_MODELS } from '../config/models.js';
+import { WASM_MODELS } from '../../fallback/wllama.js';
 import DropdownPortal from './DropdownPortal';
 
 // Icon mapping for different model types
 const getModelIcon = (modelId) => {
-  if (modelId.includes('SmolLM') || modelId.includes('TinyLlama')) {
+  if (modelId.includes('SmolLM') || modelId.includes('smollm')) {
+    return <Zap className="w-4 h-4" />;
+  }
+  if (modelId.includes('TinyLlama') || modelId.includes('tinyllama')) {
     return <Zap className="w-4 h-4" />;
   }
   if (modelId.includes('Phi')) {
     return <Cpu className="w-4 h-4" />;
   }
-  if (modelId.includes('gemma')) {
+  if (modelId.includes('gemma') || modelId.includes('qwen')) {
     return <Sparkles className="w-4 h-4" />;
   }
   return <Brain className="w-4 h-4" />;
@@ -28,6 +32,18 @@ const getCuratedModelsForUI = () => {
     speed: model.speed,
     quality: model.quality,
     useCase: model.useCase
+  }));
+};
+
+const getWasmModelsForUI = () => {
+  return WASM_MODELS.map(model => ({
+    id: model.id,
+    name: model.name,
+    description: model.description,
+    icon: getModelIcon(model.id),
+    size: model.size,
+    speed: model.priority <= 2 ? 'Fast' : 'Moderate',
+    quality: model.priority <= 2 ? 'Good' : 'Better'
   }));
 };
 
@@ -85,25 +101,16 @@ const ModelSelector = ({ currentModel, onModelSelect, runtime }) => {
   };
 
   const curatedModels = getCuratedModelsForUI();
-  
-  const selectedModel = curatedModels.find(m => m.id === currentModel) || {
+  const wasmModels = getWasmModelsForUI();
+
+  // Select appropriate model list based on runtime
+  const availableModels = runtime === 'wasm' ? wasmModels : curatedModels;
+
+  const selectedModel = availableModels.find(m => m.id === currentModel) || {
     name: currentModel || 'Select Model',
     description: 'Choose a model to start chatting',
     icon: <Brain className="w-4 h-4" />
   };
-
-  // For WASM runtime, only show the fallback model
-  const availableModels = runtime === 'wasm' 
-    ? [{ 
-        id: 'stories260K',
-        name: 'TinyStories',
-        description: 'Lightweight WASM fallback model',
-        icon: <Zap className="w-4 h-4" />,
-        size: '~15MB',
-        speed: 'Very Fast',
-        quality: 'Basic'
-      }]
-    : curatedModels;
 
   return (
     <div className="relative">
@@ -129,7 +136,7 @@ const ModelSelector = ({ currentModel, onModelSelect, runtime }) => {
             <div className="text-xs text-muted-foreground">WASM Mode</div>
           )}
         </div>
-        {runtime !== 'wasm' && <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        <ChevronDown className="w-4 h-4 text-muted-foreground" />
       </button>
 
       {isOpen && (
@@ -144,7 +151,7 @@ const ModelSelector = ({ currentModel, onModelSelect, runtime }) => {
           >
             <div className="p-3">
             <div className="text-sm font-medium text-muted-foreground mb-3">
-              Select AI Model
+              {runtime === 'wasm' ? 'Select WASM Model' : 'Select AI Model'}
             </div>
             
             <div className="space-y-2">
